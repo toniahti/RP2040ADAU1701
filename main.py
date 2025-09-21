@@ -307,7 +307,8 @@ def apply_preset(preset_idx):
     hp_freq = preset["hp_freq"]
     eq_settings = preset["eq_settings"]
     current_preset = preset_idx
-    # Apply biquad coefficients (commented out, ready for ADAU1701)
+
+    # Apply 1st cutoff parameters from presets
     b0= preset["lp_biquads"][0][0]
     b1= preset["lp_biquads"][0][1]
     b2= preset["lp_biquads"][0][2]
@@ -317,6 +318,8 @@ def apply_preset(preset_idx):
     for i in range(5):
         write_safeload(LOWPASS_ADDR_1, biquad_coeffs[i], i)
     trigger_safeload()
+
+    # Apply 2nd cutoff parameters from presets
     b0= preset["lp_biquads"][1][0]
     b1= preset["lp_biquads"][1][1]
     b2= preset["lp_biquads"][1][2]
@@ -326,23 +329,46 @@ def apply_preset(preset_idx):
     for i in range(5):
         write_safeload(LOWPASS_ADDR_2, biquad_coeffs[i], i)
     trigger_safeload()
-        #for i, biquad in enumerate(preset["lp_biquads"]):
-    #         safeload_adau1701(0x0000 + i * 20, convert_biquad_to_adau1701(*biquad))
-    #biquad_coeffs = coeffs_to_array(b0, b1, b2, a1, a2)
 
-    # for i in range(5):
-    #     write_safeload(LOWPASS_ADDR_2, biquad_coeffs[i], i)
-    # trigger_safeload()
-    # if "hp_biquads" in preset:
-    #     for i, biquad in enumerate(preset["hp_biquads"]):
-    #         safeload_adau1701(0x0028 + i * 20, convert_biquad_to_adau1701(*biquad))
-    # if "eq_biquads" in preset:
-    #     for i, biquad in enumerate(preset["eq_biquads"]):
-    #         safeload_adau1701(0x0050 + i * 20, convert_biquad_to_adau1701(*biquad))
+    # Apply subsonic 1st stage parameters
+    b0= preset["subsonic_biquads"][0][0]
+    b1= preset["subsonic_biquads"][0][1]
+    b2= preset["subsonic_biquads"][0][2]
+    a1= preset["subsonic_biquads"][0][3]
+    a2= preset["subsonic_biquads"][0][4]
+    biquad_coeffs = coeffs_to_array(b0, b1, b2, a1, a2)
+    for i in range(5):
+        write_safeload(SUBSONIC_ADDR_1, biquad_coeffs[i], i)
+    trigger_safeload()
+
+    # Apply subsonic 2nd stage parameters
+    b0= preset["subsonic_biquads"][1][0]
+    b1= preset["subsonic_biquads"][1][1]
+    b2= preset["subsonic_biquads"][1][2]
+    a1= preset["subsonic_biquads"][1][3]
+    a2= preset["subsonic_biquads"][1][4]
+    biquad_coeffs = coeffs_to_array(b0, b1, b2, a1, a2)
+    for i in range(5):
+        write_safeload(SUBSONIC_ADDR_2, biquad_coeffs[i], i)
+    trigger_safeload()
+
+    # Apply EQ1 parameters
+    for i in range (5):
+        b0= preset["eq_biquads"][i][0]
+        b1= preset["eq_biquads"][i][1]
+        b2= preset["eq_biquads"][i][2]
+        a1= preset["eq_biquads"][i][3]
+        a2= preset["eq_biquads"][i][4]
+        biquad_coeffs = coeffs_to_array(b0, b1, b2, a1, a2)
+        for a in range(5):
+            write_safeload(PARAM_EQ_ADDR[i], biquad_coeffs[a], a)
+        trigger_safeload()
+
     # Apply volume
     gain = 10 ** (volume_db / 20.0)
     write_safeload(VOLUME_ADDR, volume(volume_db),0)
     trigger_safeload()
+    
     # Apply phase
     phase_conv = 180 if phase == 1 else 0
     write_safeload(PHASE_ADDR, phase_calc(phase_conv),0)
@@ -532,13 +558,12 @@ def handle_rotary():
                 needs_save = True
             elif parent_name == "Subsonic":
                 hp_freq = max(10, min(40, hp_freq + delta))
-                #b0_1, b1_1, b2_1, a1_1, a2_1 = butterworth_subsonic_24(hp_freq, FS, stage=1)
                 b0_1, b1_1, b2_1, a1_1, a2_1 = butterworth_subsonic_24(hp_freq, FS, 1)
-                #b0_2, b1_2, b2_2, a1_2, a2_2 = butterworth_subsonic_24(hp_freq, FS, stage=2)
                 b0_2, b1_2, b2_2, a1_2, a2_2 = butterworth_subsonic_24(hp_freq, FS, 0)
                 biquad_coeffs_1 = coeffs_to_array(b0_1, b1_1, b2_1, a1_1, a2_1)
                 biquad_coeffs_2 = coeffs_to_array(b0_2, b1_2, b2_2, a1_2, a2_2)
-                presets[current_preset]["hp_biquads"] = [(b0_1, b1_1, b2_1, a1_1, a2_1), (b0_2, b1_2, b2_2, a1_2, a2_2)]
+                presets[current_preset]["subsonic_biquads"] = [(b0_1, b1_1, b2_1, a1_1, a2_1), (b0_2, b1_2, b2_2, a1_2, a2_2)]
+                #presets[current_preset]["hp_biquads"] = [(b0_1, b1_1, b2_1, a1_1, a2_1), (b0_2, b1_2, b2_2, a1_2, a2_2)]
                 for i in range(5):
                     write_safeload(SUBSONIC_ADDR_1, biquad_coeffs_1[i], i)
                 trigger_safeload()
@@ -599,12 +624,7 @@ def handle_rotary():
         elif new_cursor >= scroll_offset + MAX_VISIBLE:
             scroll_offset = new_cursor - MAX_VISIBLE + 1
         menu_stack[-1] = (current_menu, new_cursor, scroll_offset)
-    display_menu()
-    
-
-     
-
-    
+    display_menu()    
  
 # === Main Loop ===
 display_menu()
