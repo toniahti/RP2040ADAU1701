@@ -72,49 +72,6 @@ def handle_oled_timeout():
     elif idle_time > dim_after_ms and oled_on:
         oled.contrast(10)
 
-# === ADAU1701 Functions (for future use) ===
-# def float_to_fixed_5_23(value):
-#     value = max(min(value, 15.999), -16.0)
-#     fixed = int(value * (1 << 23))
-#     return [
-#         (fixed >> 24) & 0xFF,
-#         (fixed >> 16) & 0xFF,
-#         (fixed >> 8) & 0xFF,
-#         fixed & 0xFF
-#     ]
-
-# def safeload_adau1701(address, coeffs):
-#     if not isinstance(coeffs[0], list):  # Single coefficient (e.g., Phase, Volume)
-#         coeffs = [coeffs]
-#     for i, coeff in enumerate(coeffs):
-#         i2c.writeto_mem(ADAU1701_ADDR, 0x0815 + i*4, bytearray(coeff))
-#     i2c.writeto_mem(ADAU1701_ADDR, 0x081A, bytearray([address >> 8, address & 0xFF]))
-#     i2c.writeto_mem(ADAU1701_ADDR, 0x081C, bytearray([0x00, len(coeffs)]))
-
-# def convert_biquad_to_adau1701(b0, b1, b2, a1, a2):
-#     return [
-#         float_to_fixed_5_23(b0),
-#         float_to_fixed_5_23(b1),
-#         float_to_fixed_5_23(b2),
-#         float_to_fixed_5_23(-a1),
-#         float_to_fixed_5_23(-a2)
-#     ]
-
-# === DSP Functions ===
-# def calc_peaking_eq(freq, q, gain_db):
-#     A = 10 ** (gain_db / 40)
-#     omega = 2 * math.pi * freq / FS
-#     alpha = math.sin(omega) / (2 * q)
-#     cosw = math.cos(omega)
-#     b0 = 1 + alpha * A
-#     b1 = -2 * cosw
-#     b2 = 1 - alpha * A
-#     a0 = 1 + alpha / A
-#     a1 = -2 * cosw
-#     a2 = 1 - alpha / A
-#     b0 /= a0; b1 /= a0; b2 /= a0; a1 /= a0; a2 /= a0
-#     return b0, b1, b2, a1, a2
-
 def parametric_eq(frequency, q, boost):
     gain = 0
     gainlinear = 10 ** (gain / 20)
@@ -137,23 +94,7 @@ def parametric_eq(frequency, q, boost):
         b0 = (1 + (alpha * ax)) * gainlinear
         b1 = -( 2 * cs) * gainlinear
         b2 = (1 - (alpha * ax)) * gainlinear
-    #a1_hex = float_to_fixed_point_bytes(-a1)
-    #a2_hex = float_to_fixed_point_bytes(-a2) 
-    #b0_hex = float_to_fixed_point_bytes(b0)
-    #b1_hex = float_to_fixed_point_bytes(b1)
-    #b2_hex = float_to_fixed_point_bytes(b2)
     return b0, b1, b2, a1, a2
-    
-# def linkwitz_riley_2nd(fc, fs):
-    # K = math.tan(math.pi*fc/fs)
-    # K2 = K*K
-    # norm = 1/(1+math.sqrt(2)*K + K2)
-    # b0 = K2*norm
-    # b1 = 2*b0
-    # b2 = b0
-    # a1 = 2*(K2-1)*norm
-    # a2 = (1- math.sqrt(2)*K + K2)*norm
-    # return b0, b1, b2, a1, a2
     
 def linkwitz_riley_lowpass(frequency, FS):
     gain = 0 #no gain needed
@@ -167,30 +108,8 @@ def linkwitz_riley_lowpass(frequency, FS):
     b1 = (1 - cs) / a0 * 10 ** (gain / 20)
     b0 = b1 / 2
     b2 = b0
-    #a1_hex = float_to_fixed_point_bytes(-a1)
-    #a2_hex = float_to_fixed_point_bytes(-a2) 
-    #b0_hex = float_to_fixed_point_bytes(b0)
-    #b1_hex = float_to_fixed_point_bytes(b1)
-    #b2_hex = float_to_fixed_point_bytes(b2)
     return b0,b1,b2,a1,a2
     
-# def butterworth_2nd_order_biquad(fc, fs, stage=1):
-    # poles = [
-        # complex(-0.3826834323650898, 0.9238795325112867),
-        # complex(-0.9238795325112867, 0.3826834323650898)
-    # ]
-    # p = poles[stage-1]
-    # Q = 1 / (2 * -p.real)
-    # K = math.tan(math.pi * fc / fs)
-    # K2 = K*K
-    # norm = 1/(1 + K/Q + K2)
-    # b0 = 1 * norm
-    # b1 = -2 * norm
-    # b2 = 1 * norm
-    # a1 = 2*(K2-1)*norm
-    # a2 = (1 - K/Q + K2)*norm
-    # return b0, b1, b2, a1, a2
-
 def butterworth_subsonic_24(fc, FS, i):
     orderindex=4 #24dB per octave
     gain = 0 #no gain needed
@@ -205,13 +124,86 @@ def butterworth_subsonic_24(fc, FS, i):
     b1 = -(1 + cs) / a0 * 10 ** (gain / 20)
     b0 = - b1 / 2
     b2 = b0
-    #a1_hex = float_to_fixed_point_bytes(-a1)
-    #a2_hex = float_to_fixed_point_bytes(-a2) 
-    #b0_hex = float_to_fixed_point_bytes(b0)
-    #b1_hex = float_to_fixed_point_bytes(b1)
-    #b2_hex = float_to_fixed_point_bytes(b2)
     return b0,b1,b2,a1,a2
+
+def volume(attenuation_db):
+    """
+    Calculate attenuated value from 0 dB reference (2^23) and return in 5.23 fixed-point format
+    as four separate hex bytes (MSB to LSB).
+    """
+    full_scale_value = 2 ** 23
+    linear_factor = 10 ** (attenuation_db / 20)
+    attenuated_value = full_scale_value * linear_factor
+
+    # Convert to 5.23 fixed-point format
+    fixed_point_value = int(attenuated_value) & 0xFFFFFFFF
+
+    # Extract four bytes (MSB to LSB)
+    byte1 = (fixed_point_value >> 24) & 0xFF
+    byte2 = (fixed_point_value >> 16) & 0xFF
+    byte3 = (fixed_point_value >> 8) & 0xFF
+    byte4 = fixed_point_value & 0xFF
+
+    return [hex(byte1), hex(byte2), hex(byte3), hex(byte4)]
+
+def phase_calc(phase):
+    if phase == 0:
+        return [hex(0x00), hex(0x80), hex(0x00), hex(0x00)]
+    else:
+        return [hex(0xFF), hex(0x80), hex(0x00), hex(0x00)]
     
+def write_safeload(addr_coeff, biquad, index):
+    #format data register array
+    byte_values = [int(h, 16) for h in biquad]
+    biquad_array = bytearray(byte_values)
+    data_reg_array = bytearray([(DATA_REG >> 8) & 0xFF, DATA_REG & 0xFF])
+    data_reg_array[-1] = (data_reg_array[-1] + index) & 0xFF
+    combined_data=bytes(data_reg_array)+bytes([0x00])+bytes(biquad_array)
+    
+    #format addr register array
+    addr_reg_array = bytearray([(ADDR_REG >> 8) & 0xFF, ADDR_REG & 0xFF])
+    addr_reg_array[-1] = (addr_reg_array[-1] + index) & 0xFF
+    addr_coeff_array = bytearray([(addr_coeff >> 8) & 0xFF, addr_coeff & 0xFF])
+    addr_coeff_array[-1] = (addr_coeff_array[-1] + index) & 0xFF
+    combined_addr=bytes(addr_reg_array)+bytes(addr_coeff_array)
+    #write to ADAU1701
+    i2c_adau.writeto(I2C_ADDR, combined_data)
+    i2c_adau.writeto(I2C_ADDR, combined_addr)
+
+def trigger_safeload():
+    i2c_adau.writeto(I2C_ADDR, bytes([0x08, 0x1c, 0x00, 0x3c]))
+
+def float_to_fixed_point_bytes(value):
+    # Fixed-point format: 5 integer bits, 23 fractional bits
+    total_bits = 28
+    fractional_bits = 23
+    scale = 2 ** fractional_bits
+
+    # Scale the float to fixed-point integer
+    scaled_value = int(round(value * scale))
+
+    # Apply two's complement if negative
+    if scaled_value < 0:
+        scaled_value = (1 << total_bits) + scaled_value
+
+    # Mask to ensure it's within 28 bits
+    scaled_value &= (1 << total_bits) - 1
+
+    # Convert to 4 bytes (big-endian)
+    byte_array = scaled_value.to_bytes(4, 'big')
+
+    # Format each byte as hex
+    hex_bytes = [f"0x{byte:02X}" for byte in byte_array]
+    return hex_bytes
+
+def coeffs_to_array(b0,b1,b2,a1,a2):
+    a1_hex = float_to_fixed_point_bytes(-a1)
+    a2_hex = float_to_fixed_point_bytes(-a2) 
+    b0_hex = float_to_fixed_point_bytes(b0)
+    b1_hex = float_to_fixed_point_bytes(b1)
+    b2_hex = float_to_fixed_point_bytes(b2)
+    return b0_hex, b1_hex, b2_hex, a1_hex, a2_hex
+   
 # === Preset Management ===
 presets = [
     {
@@ -316,20 +308,45 @@ def apply_preset(preset_idx):
     eq_settings = preset["eq_settings"]
     current_preset = preset_idx
     # Apply biquad coefficients (commented out, ready for ADAU1701)
-    # if "lp_biquads" in preset:
-    #     for i, biquad in enumerate(preset["lp_biquads"]):
+    b0= preset["lp_biquads"][0][0]
+    b1= preset["lp_biquads"][0][1]
+    b2= preset["lp_biquads"][0][2]
+    a1= preset["lp_biquads"][0][3]
+    a2= preset["lp_biquads"][0][4]
+    biquad_coeffs = coeffs_to_array(b0, b1, b2, a1, a2)
+    for i in range(5):
+        write_safeload(LOWPASS_ADDR_1, biquad_coeffs[i], i)
+    trigger_safeload()
+    b0= preset["lp_biquads"][1][0]
+    b1= preset["lp_biquads"][1][1]
+    b2= preset["lp_biquads"][1][2]
+    a1= preset["lp_biquads"][1][3]
+    a2= preset["lp_biquads"][1][4]
+    biquad_coeffs = coeffs_to_array(b0, b1, b2, a1, a2)
+    for i in range(5):
+        write_safeload(LOWPASS_ADDR_2, biquad_coeffs[i], i)
+    trigger_safeload()
+        #for i, biquad in enumerate(preset["lp_biquads"]):
     #         safeload_adau1701(0x0000 + i * 20, convert_biquad_to_adau1701(*biquad))
+    #biquad_coeffs = coeffs_to_array(b0, b1, b2, a1, a2)
+
+    # for i in range(5):
+    #     write_safeload(LOWPASS_ADDR_2, biquad_coeffs[i], i)
+    # trigger_safeload()
     # if "hp_biquads" in preset:
     #     for i, biquad in enumerate(preset["hp_biquads"]):
     #         safeload_adau1701(0x0028 + i * 20, convert_biquad_to_adau1701(*biquad))
     # if "eq_biquads" in preset:
     #     for i, biquad in enumerate(preset["eq_biquads"]):
     #         safeload_adau1701(0x0050 + i * 20, convert_biquad_to_adau1701(*biquad))
-    # Apply volume and phase
-    # gain = 10 ** (volume_db / 20.0)
-    # safeload_adau1701(0x0054, [float_to_fixed_5_23(gain)])
-    # phase_gain = -1.0 if phase == 1 else 1.0
-    # safeload_adau1701(0x0050, [float_to_fixed_5_23(phase_gain)])
+    # Apply volume
+    gain = 10 ** (volume_db / 20.0)
+    write_safeload(VOLUME_ADDR, volume(volume_db),0)
+    trigger_safeload()
+    # Apply phase
+    phase_conv = 180 if phase == 1 else 0
+    write_safeload(PHASE_ADDR, phase_calc(phase_conv),0)
+    trigger_safeload()
     print(f"Loaded preset {preset['name']}")
     save_presets()
 
@@ -584,84 +601,11 @@ def handle_rotary():
         menu_stack[-1] = (current_menu, new_cursor, scroll_offset)
     display_menu()
     
-def volume(attenuation_db):
-    """
-    Calculate attenuated value from 0 dB reference (2^23) and return in 5.23 fixed-point format
-    as four separate hex bytes (MSB to LSB).
-    """
-    full_scale_value = 2 ** 23
-    linear_factor = 10 ** (attenuation_db / 20)
-    attenuated_value = full_scale_value * linear_factor
 
-    # Convert to 5.23 fixed-point format
-    fixed_point_value = int(attenuated_value) & 0xFFFFFFFF
+     
 
-    # Extract four bytes (MSB to LSB)
-    byte1 = (fixed_point_value >> 24) & 0xFF
-    byte2 = (fixed_point_value >> 16) & 0xFF
-    byte3 = (fixed_point_value >> 8) & 0xFF
-    byte4 = fixed_point_value & 0xFF
-
-    return [hex(byte1), hex(byte2), hex(byte3), hex(byte4)]
-
-def phase_calc(phase):
-    if phase == 0:
-        return [hex(0x00), hex(0x80), hex(0x00), hex(0x00)]
-    else:
-        return [hex(0xFF), hex(0x80), hex(0x00), hex(0x00)]
     
-def write_safeload(addr_coeff, biquad, index):
-    #format data register array
-    byte_values = [int(h, 16) for h in biquad]
-    biquad_array = bytearray(byte_values)
-    data_reg_array = bytearray([(DATA_REG >> 8) & 0xFF, DATA_REG & 0xFF])
-    data_reg_array[-1] = (data_reg_array[-1] + index) & 0xFF
-    combined_data=bytes(data_reg_array)+bytes([0x00])+bytes(biquad_array)
-    
-    #format addr register array
-    addr_reg_array = bytearray([(ADDR_REG >> 8) & 0xFF, ADDR_REG & 0xFF])
-    addr_reg_array[-1] = (addr_reg_array[-1] + index) & 0xFF
-    addr_coeff_array = bytearray([(addr_coeff >> 8) & 0xFF, addr_coeff & 0xFF])
-    addr_coeff_array[-1] = (addr_coeff_array[-1] + index) & 0xFF
-    combined_addr=bytes(addr_reg_array)+bytes(addr_coeff_array)
-    #write to ADAU1701
-    i2c_adau.writeto(I2C_ADDR, combined_data)
-    i2c_adau.writeto(I2C_ADDR, combined_addr)
-
-def trigger_safeload():
-    i2c_adau.writeto(I2C_ADDR, bytes([0x08, 0x1c, 0x00, 0x3c]))
-    
-def float_to_fixed_point_bytes(value):
-    # Fixed-point format: 5 integer bits, 23 fractional bits
-    total_bits = 28
-    fractional_bits = 23
-    scale = 2 ** fractional_bits
-
-    # Scale the float to fixed-point integer
-    scaled_value = int(round(value * scale))
-
-    # Apply two's complement if negative
-    if scaled_value < 0:
-        scaled_value = (1 << total_bits) + scaled_value
-
-    # Mask to ensure it's within 28 bits
-    scaled_value &= (1 << total_bits) - 1
-
-    # Convert to 4 bytes (big-endian)
-    byte_array = scaled_value.to_bytes(4, 'big')
-
-    # Format each byte as hex
-    hex_bytes = [f"0x{byte:02X}" for byte in byte_array]
-    return hex_bytes
-    
-def coeffs_to_array(b0,b1,b2,a1,a2):
-    a1_hex = float_to_fixed_point_bytes(-a1)
-    a2_hex = float_to_fixed_point_bytes(-a2) 
-    b0_hex = float_to_fixed_point_bytes(b0)
-    b1_hex = float_to_fixed_point_bytes(b1)
-    b2_hex = float_to_fixed_point_bytes(b2)
-    return b0_hex, b1_hex, b2_hex, a1_hex, a2_hex
-    
+ 
 # === Main Loop ===
 display_menu()
 while True:
