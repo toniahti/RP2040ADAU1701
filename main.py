@@ -73,49 +73,49 @@ def handle_oled_timeout():
         oled.contrast(10)
 
 # === ADAU1701 Functions (for future use) ===
-def float_to_fixed_5_23(value):
-    value = max(min(value, 15.999), -16.0)
-    fixed = int(value * (1 << 23))
-    return [
-        (fixed >> 24) & 0xFF,
-        (fixed >> 16) & 0xFF,
-        (fixed >> 8) & 0xFF,
-        fixed & 0xFF
-    ]
+# def float_to_fixed_5_23(value):
+#     value = max(min(value, 15.999), -16.0)
+#     fixed = int(value * (1 << 23))
+#     return [
+#         (fixed >> 24) & 0xFF,
+#         (fixed >> 16) & 0xFF,
+#         (fixed >> 8) & 0xFF,
+#         fixed & 0xFF
+#     ]
 
-def safeload_adau1701(address, coeffs):
-    if not isinstance(coeffs[0], list):  # Single coefficient (e.g., Phase, Volume)
-        coeffs = [coeffs]
-    for i, coeff in enumerate(coeffs):
-        i2c.writeto_mem(ADAU1701_ADDR, 0x0815 + i*4, bytearray(coeff))
-    i2c.writeto_mem(ADAU1701_ADDR, 0x081A, bytearray([address >> 8, address & 0xFF]))
-    i2c.writeto_mem(ADAU1701_ADDR, 0x081C, bytearray([0x00, len(coeffs)]))
+# def safeload_adau1701(address, coeffs):
+#     if not isinstance(coeffs[0], list):  # Single coefficient (e.g., Phase, Volume)
+#         coeffs = [coeffs]
+#     for i, coeff in enumerate(coeffs):
+#         i2c.writeto_mem(ADAU1701_ADDR, 0x0815 + i*4, bytearray(coeff))
+#     i2c.writeto_mem(ADAU1701_ADDR, 0x081A, bytearray([address >> 8, address & 0xFF]))
+#     i2c.writeto_mem(ADAU1701_ADDR, 0x081C, bytearray([0x00, len(coeffs)]))
 
-def convert_biquad_to_adau1701(b0, b1, b2, a1, a2):
-    return [
-        float_to_fixed_5_23(b0),
-        float_to_fixed_5_23(b1),
-        float_to_fixed_5_23(b2),
-        float_to_fixed_5_23(-a1),
-        float_to_fixed_5_23(-a2)
-    ]
+# def convert_biquad_to_adau1701(b0, b1, b2, a1, a2):
+#     return [
+#         float_to_fixed_5_23(b0),
+#         float_to_fixed_5_23(b1),
+#         float_to_fixed_5_23(b2),
+#         float_to_fixed_5_23(-a1),
+#         float_to_fixed_5_23(-a2)
+#     ]
 
 # === DSP Functions ===
 # def calc_peaking_eq(freq, q, gain_db):
-    # A = 10 ** (gain_db / 40)
-    # omega = 2 * math.pi * freq / FS
-    # alpha = math.sin(omega) / (2 * q)
-    # cosw = math.cos(omega)
-    # b0 = 1 + alpha * A
-    # b1 = -2 * cosw
-    # b2 = 1 - alpha * A
-    # a0 = 1 + alpha / A
-    # a1 = -2 * cosw
-    # a2 = 1 - alpha / A
-    # b0 /= a0; b1 /= a0; b2 /= a0; a1 /= a0; a2 /= a0
-    # return b0, b1, b2, a1, a2
+#     A = 10 ** (gain_db / 40)
+#     omega = 2 * math.pi * freq / FS
+#     alpha = math.sin(omega) / (2 * q)
+#     cosw = math.cos(omega)
+#     b0 = 1 + alpha * A
+#     b1 = -2 * cosw
+#     b2 = 1 - alpha * A
+#     a0 = 1 + alpha / A
+#     a1 = -2 * cosw
+#     a2 = 1 - alpha / A
+#     b0 /= a0; b1 /= a0; b2 /= a0; a1 /= a0; a2 /= a0
+#     return b0, b1, b2, a1, a2
 
-def parametric_eq(boost, frequency, q, gain, FS):
+def parametric_eq(frequency, q, boost):
     gain = 0
     gainlinear = 10 ** (gain / 20)
     if boost == 0:
@@ -223,7 +223,7 @@ presets = [
         "eq_settings": [{"freq": 100, "q": 1.0, "boost": 0} for _ in range(5)],
         "lp_biquads": [linkwitz_riley_lowpass(80, FS), linkwitz_riley_lowpass(80, FS)],
         "hp_biquads": [butterworth_subsonic_24(80, FS, 1), butterworth_subsonic_24(80, FS, 2)],
-        "eq_biquads": [calc_peaking_eq(100, 1.0, 0) for _ in range(5)]
+        "eq_biquads": [parametric_eq(100, 1.0, 0) for _ in range(5)]
     },
     {
         "name": "PR2", 
@@ -234,7 +234,7 @@ presets = [
         "eq_settings": [{"freq": 100, "q": 1.0, "boost": 0} for _ in range(5)],
         "lp_biquads": [linkwitz_riley_lowpass(80, FS), linkwitz_riley_lowpass(80, FS)],
         "hp_biquads": [butterworth_subsonic_24(80, FS, 1), butterworth_subsonic_24(80, FS, 2)],
-        "eq_biquads": [calc_peaking_eq(100, 1.0, 0) for _ in range(5)]
+        "eq_biquads": [parametric_eq(100, 1.0, 0) for _ in range(5)]
     },
     {
         "name": "PR3", 
@@ -245,7 +245,7 @@ presets = [
         "eq_settings": [{"freq": 100, "q": 1.0, "boost": 0} for _ in range(5)],
         "lp_biquads": [linkwitz_riley_lowpass(80, FS), linkwitz_riley_lowpass(80, FS)],
         "hp_biquads": [butterworth_subsonic_24(80, FS, 1), butterworth_subsonic_24(80, FS, 2)],
-        "eq_biquads": [calc_peaking_eq(100, 1.0, 0) for _ in range(5)]
+        "eq_biquads": [parametric_eq(100, 1.0, 0) for _ in range(5)]
     },
     {
         "name": "PR4", 
@@ -256,7 +256,7 @@ presets = [
         "eq_settings": [{"freq": 100, "q": 1.0, "boost": 0} for _ in range(5)],
         "lp_biquads": [linkwitz_riley_lowpass(80, FS), linkwitz_riley_lowpass(80, FS)],
         "hp_biquads": [butterworth_subsonic_24(80, FS, 1), butterworth_subsonic_24(80, FS, 2)],
-        "eq_biquads": [calc_peaking_eq(100, 1.0, 0) for _ in range(5)]
+        "eq_biquads": [parametric_eq(100, 1.0, 0) for _ in range(5)]
     },
     {
         "name": "PR5", 
@@ -267,7 +267,7 @@ presets = [
         "eq_settings": [{"freq": 100, "q": 1.0, "boost": 0} for _ in range(5)],
         "lp_biquads": [linkwitz_riley_lowpass(80, FS), linkwitz_riley_lowpass(80, FS)],
         "hp_biquads": [butterworth_subsonic_24(80, FS, 1), butterworth_subsonic_24(80, FS, 2)],
-        "eq_biquads": [calc_peaking_eq(100, 1.0, 0) for _ in range(5)]
+        "eq_biquads": [parametric_eq(100, 1.0, 0) for _ in range(5)]
     }
 ]
 current_preset = 0  # Index of the current preset (0–4 for PR1–PR5)
@@ -298,7 +298,7 @@ def load_presets():
                 if "hp_biquads" not in preset:
                     preset["hp_biquads"] = [butterworth_subsonic_24(preset["hp_freq"], FS, 1), butterworth_subsonic_24(preset["hp_freq"], FS, 2)]
                 if "eq_biquads" not in preset:
-                    preset["eq_biquads"] = [calc_peaking_eq(eq["freq"], eq["q"], eq["boost"]) for eq in preset["eq_settings"]]
+                    preset["eq_biquads"] = [parametric_eq(eq["freq"], eq["q"], eq["boost"]) for eq in preset["eq_settings"]]
             presets = loaded_presets
             current_preset = data.get("last_preset", 0)
             apply_preset(current_preset)
@@ -534,7 +534,7 @@ def handle_rotary():
             elif parent_name.startswith("EQ"):
                 eq_idx = menu_stack[-2][1]
                 eq_settings[eq_idx]["freq"] = max(10, min(150, eq_settings[eq_idx]["freq"] + delta))
-                b0, b1, b2, a1, a2 = parametric_eq(eq_settings[eq_idx]["boost"], eq_settings[eq_idx]["freq"], eq_settings[eq_idx]["q"], 0, FS)
+                b0, b1, b2, a1, a2 = parametric_eq(eq_settings[eq_idx]["freq"], eq_settings[eq_idx]["q"], eq_settings[eq_idx]["boost"])
                 biquad_coeffs = coeffs_to_array(b0, b1, b2, a1, a2)
                 presets[current_preset]["eq_biquads"][eq_idx] = (b0, b1, b2, a1, a2)
                 for i in range(5):
@@ -545,7 +545,7 @@ def handle_rotary():
         elif item["name"] == "Q":
             eq_idx = menu_stack[-2][1]
             eq_settings[eq_idx]["q"] = max(0.1, min(10.0, eq_settings[eq_idx]["q"] + delta * 0.1))
-            b0, b1, b2, a1, a2 = parametric_eq(eq_settings[eq_idx]["boost"], eq_settings[eq_idx]["freq"], eq_settings[eq_idx]["q"], 0, FS)
+            b0, b1, b2, a1, a2 = parametric_eq(eq_settings[eq_idx]["freq"], eq_settings[eq_idx]["q"], eq_settings[eq_idx]["boost"])
             biquad_coeffs = coeffs_to_array(b0, b1, b2, a1, a2)
             presets[current_preset]["eq_biquads"][eq_idx] = (b0, b1, b2, a1, a2)
             for i in range(5):
@@ -556,7 +556,7 @@ def handle_rotary():
         elif item["name"] == "Boost":
             eq_idx = menu_stack[-2][1]
             eq_settings[eq_idx]["boost"] = max(-12, min(12, eq_settings[eq_idx]["boost"] + delta * 0.1))
-            b0, b1, b2, a1, a2 = parametric_eq(eq_settings[eq_idx]["boost"], eq_settings[eq_idx]["freq"], eq_settings[eq_idx]["q"], 0, FS)
+            b0, b1, b2, a1, a2 = parametric_eq(eq_settings[eq_idx]["freq"], eq_settings[eq_idx]["q"], eq_settings[eq_idx]["boost"])
             biquad_coeffs = coeffs_to_array(b0, b1, b2, a1, a2)
             presets[current_preset]["eq_biquads"][eq_idx] = (b0, b1, b2, a1, a2)
             for i in range(5):
