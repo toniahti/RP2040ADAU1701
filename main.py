@@ -2,8 +2,11 @@ import time
 import math
 import ujson
 from machine import Pin, I2C
-from ssd1306 import SSD1306_I2C
+from ssd1306_2 import SSD1306_I2C
 from rotary_irq_rp2 import RotaryIRQ
+import image_rp #raspberry pi pico logo
+import image_ad #analog devices logo
+import framebuf
 
 I2C_ADDR = 0x34  # ADAU1701 I2C address
 DATA_REG = 0x810
@@ -48,8 +51,8 @@ r = RotaryIRQ(
 )
 
 # === Screen Saver ===
-dim_after_ms = 5000
-off_after_ms = 10000
+dim_after_ms = 10000
+off_after_ms = 20000
 oled_on = True
 last_activity = time.ticks_ms()
 
@@ -413,8 +416,19 @@ eq_settings = [{"freq": 100, "q": 1.0, "boost": 0} for _ in range(5)]
 last_save_time = 0  # Timestamp of last parameter change
 needs_save = False  # Flag to indicate pending save
 
-# === Load Last Preset on Boot ===
+# === Show boot logos and load Last Preset on Boot ===
+fb_ad = framebuf.FrameBuffer(image_ad.ad, 128, 64, framebuf.MONO_VLSB)
+fb_rp = framebuf.FrameBuffer(image_rp.rp, 128, 64, framebuf.MONO_VLSB)
+oled.blit(fb_ad, 0, 0)
+oled.show()
+time.sleep_ms(2000)
+oled.fill(0)
+oled.blit(fb_rp, 0, 0)
+oled.show()
 load_presets()
+time.sleep_ms(2000)
+oled.fill(0)
+oled.show()
 
 # === Display Function ===
 def display_menu():
@@ -578,6 +592,7 @@ def handle_rotary():
                 eq_settings[eq_idx]["freq"] = max(10, min(150, eq_settings[eq_idx]["freq"] + delta))
                 b0, b1, b2, a1, a2 = parametric_eq(eq_settings[eq_idx]["freq"], eq_settings[eq_idx]["q"], eq_settings[eq_idx]["boost"])
                 biquad_coeffs = coeffs_to_array(b0, b1, b2, a1, a2)
+                #print("saatana", biquad_coeffs)
                 presets[current_preset]["eq_biquads"][eq_idx] = (b0, b1, b2, a1, a2)
                 for i in range(5):
                     write_safeload(PARAM_EQ_ADDR[eq_idx], biquad_coeffs[i], i)
