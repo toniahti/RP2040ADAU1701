@@ -384,6 +384,7 @@ menu_structure = [
     {"name": "Parameters", "children": [
         {"name": "Volume", "children": [{"name": "Value"}, {"name": "Back"}]},
         {"name": "Phase", "children": [{"name": "Value"}, {"name": "Back"}]},
+        {"name": "Static gain", "children": [{"name": "Value"}, {"name": "Back"}]},
         {"name": "Cutoff", "children": [{"name": "Freq"}, {"name": "Back"}]},
         {"name": "Subsonic", "children": [{"name": "Freq"}, {"name": "Back"}]},
         {"name": "Param EQ", "children": [
@@ -409,6 +410,7 @@ menu_structure = [
 menu_stack = [(menu_structure, 0, 0)]  # (menu, cursor, scroll_offset)
 editing_parameter = False
 volume_db = -12  # Initial volume in dB (-80 to 0 dB)
+gain_db = -3
 phase = 0  # 0 for 0°, 1 for 180°
 lp_freq = 80  # Low-pass frequency (40–150 Hz)
 hp_freq = 80  # High-pass frequency (10–40 Hz)
@@ -445,7 +447,7 @@ def display_menu():
         header_text = ""
         if len(menu_stack) >= 2:
             parent_item = menu_stack[-2][0][menu_stack[-2][1]]["name"]
-            if parent_item in ["Volume", "Phase", "Cutoff", "Subsonic"]:
+            if parent_item in ["Volume", "Static gain", "Phase", "Cutoff", "Subsonic"]:
                 header_text = f"{parent_item} {'[Edit]' if editing_parameter else ''}"
             elif parent_item.startswith("EQ"):
                 header_text = f"{parent_item} {'[Edit]' if editing_parameter else ''}"
@@ -468,6 +470,8 @@ def display_menu():
             parent_name = menu_stack[-2][0][menu_stack[-2][1]]["name"]
             if parent_name == "Volume":
                 oled.text(f"{marker} Value: {volume_db}dB", x, y)
+            elif parent_name == "Static gain":
+                oled.text(f"{marker} Value: {gain_db}dB", x, y)
             elif parent_name == "Phase":
                 phase_str = "180 deg" if phase == 1 else "0 deg"
                 oled.text(f"{marker} Value: {phase_str}", x, y)
@@ -528,7 +532,7 @@ SW.irq(trigger=Pin.IRQ_RISING, handler=button_handler)
 # === Rotary Handler ===
 last_val = r.value()
 def handle_rotary():
-    global last_val, volume_db, phase, lp_freq, hp_freq, eq_settings, needs_save, last_save_time
+    global last_val, volume_db, phase, gain_db, lp_freq, hp_freq, eq_settings, needs_save, last_save_time
     val = r.value()
     delta = val - last_val
     if delta == 0:
@@ -555,6 +559,12 @@ def handle_rotary():
                 write_safeload(PHASE_ADDR, phase_calc(phase_conv),0)
                 trigger_safeload()
                 print(f"Phase set to {'180 deg' if phase == 180 else '0 deg'}")
+                needs_save = True
+            elif parent_name == "Static gain":
+                print("staattista gainia...")
+                gain_db = max(-80, min(0, gain_db + delta))
+                write_safeload(GAIN_ADDR, volume(gain_db),0)
+                trigger_safeload()
                 needs_save = True
         elif item["name"] == "Freq":
             if parent_name == "Cutoff":
