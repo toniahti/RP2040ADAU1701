@@ -601,7 +601,7 @@ def handle_rotary():
                 needs_save = True
         elif item["name"] == "Q":
             eq_idx = menu_stack[-2][1]
-            eq_settings[eq_idx]["q"] = max(0.1, min(10.0, eq_settings[eq_idx]["q"] + delta * 0.1))
+            eq_settings[eq_idx]["q"] = round(max(0.1, min(10.0, eq_settings[eq_idx]["q"] + delta * 0.1)),1)
             b0, b1, b2, a1, a2 = parametric_eq(eq_settings[eq_idx]["freq"], eq_settings[eq_idx]["q"], eq_settings[eq_idx]["boost"])
             biquad_coeffs = coeffs_to_array(b0, b1, b2, a1, a2)
             presets[current_preset]["eq_biquads"][eq_idx] = (b0, b1, b2, a1, a2)
@@ -612,9 +612,11 @@ def handle_rotary():
             needs_save = True
         elif item["name"] == "Boost":
             eq_idx = menu_stack[-2][1]
-            eq_settings[eq_idx]["boost"] = max(-12, min(12, eq_settings[eq_idx]["boost"] + delta * 0.1))
-            b0, b1, b2, a1, a2 = parametric_eq(eq_settings[eq_idx]["freq"], eq_settings[eq_idx]["q"], eq_settings[eq_idx]["boost"])
+            eq_settings[eq_idx]["boost"] = round(max(-12, min(12, eq_settings[eq_idx]["boost"] + delta * 0.1)),1)
+            b0, b1, b2, a1, a2 = parametric_eq(round(eq_settings[eq_idx]["freq"]), round(eq_settings[eq_idx]["q"],1), eq_settings[eq_idx]["boost"])
             biquad_coeffs = coeffs_to_array(b0, b1, b2, a1, a2)
+            print(eq_settings[eq_idx]["freq"], eq_settings[eq_idx]["q"], eq_settings[eq_idx]["boost"])
+            print(b0, b1, b2, a1, a2)
             presets[current_preset]["eq_biquads"][eq_idx] = (b0, b1, b2, a1, a2)
             for i in range(5):
                 write_safeload(PARAM_EQ_ADDR[eq_idx], biquad_coeffs[i], i)
