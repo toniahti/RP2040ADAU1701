@@ -2,7 +2,7 @@ import time
 import math
 import ujson
 from machine import Pin, I2C
-from ssd1306_2 import SSD1306_I2C
+from ssd1306 import SSD1306_I2C
 from rotary_irq_rp2 import RotaryIRQ
 import image_rp #raspberry pi pico logo
 import image_ad #analog devices logo
@@ -217,7 +217,7 @@ presets = [
         "hp_freq": 80,
         "eq_settings": [{"freq": 100, "q": 1.0, "boost": 0} for _ in range(5)],
         "lp_biquads": [linkwitz_riley_lowpass(80, FS), linkwitz_riley_lowpass(80, FS)],
-        "hp_biquads": [butterworth_subsonic_24(80, FS, 1), butterworth_subsonic_24(80, FS, 2)],
+        "hp_biquads": [butterworth_subsonic_24(80, FS, 1), butterworth_subsonic_24(80, FS, 0)],
         "eq_biquads": [parametric_eq(100, 1.0, 0) for _ in range(5)]
     },
     {
@@ -228,7 +228,7 @@ presets = [
         "hp_freq": 80,
         "eq_settings": [{"freq": 100, "q": 1.0, "boost": 0} for _ in range(5)],
         "lp_biquads": [linkwitz_riley_lowpass(80, FS), linkwitz_riley_lowpass(80, FS)],
-        "hp_biquads": [butterworth_subsonic_24(80, FS, 1), butterworth_subsonic_24(80, FS, 2)],
+        "hp_biquads": [butterworth_subsonic_24(80, FS, 1), butterworth_subsonic_24(80, FS, 0)],
         "eq_biquads": [parametric_eq(100, 1.0, 0) for _ in range(5)]
     },
     {
@@ -239,7 +239,7 @@ presets = [
         "hp_freq": 80,
         "eq_settings": [{"freq": 100, "q": 1.0, "boost": 0} for _ in range(5)],
         "lp_biquads": [linkwitz_riley_lowpass(80, FS), linkwitz_riley_lowpass(80, FS)],
-        "hp_biquads": [butterworth_subsonic_24(80, FS, 1), butterworth_subsonic_24(80, FS, 2)],
+        "hp_biquads": [butterworth_subsonic_24(80, FS, 1), butterworth_subsonic_24(80, FS, 0)],
         "eq_biquads": [parametric_eq(100, 1.0, 0) for _ in range(5)]
     },
     {
@@ -250,7 +250,7 @@ presets = [
         "hp_freq": 80,
         "eq_settings": [{"freq": 100, "q": 1.0, "boost": 0} for _ in range(5)],
         "lp_biquads": [linkwitz_riley_lowpass(80, FS), linkwitz_riley_lowpass(80, FS)],
-        "hp_biquads": [butterworth_subsonic_24(80, FS, 1), butterworth_subsonic_24(80, FS, 2)],
+        "hp_biquads": [butterworth_subsonic_24(80, FS, 1), butterworth_subsonic_24(80, FS, 0)],
         "eq_biquads": [parametric_eq(100, 1.0, 0) for _ in range(5)]
     },
     {
@@ -261,7 +261,7 @@ presets = [
         "hp_freq": 80,
         "eq_settings": [{"freq": 100, "q": 1.0, "boost": 0} for _ in range(5)],
         "lp_biquads": [linkwitz_riley_lowpass(80, FS), linkwitz_riley_lowpass(80, FS)],
-        "hp_biquads": [butterworth_subsonic_24(80, FS, 1), butterworth_subsonic_24(80, FS, 2)],
+        "hp_biquads": [butterworth_subsonic_24(80, FS, 1), butterworth_subsonic_24(80, FS, 0)],
         "eq_biquads": [parametric_eq(100, 1.0, 0) for _ in range(5)]
     }
 ]
@@ -291,7 +291,7 @@ def load_presets():
                 if "lp_biquads" not in preset:
                     preset["lp_biquads"] = [linkwitz_riley_lowpass(preset["lp_freq"], FS), linkwitz_riley_lowpass(preset["lp_freq"], FS)]
                 if "hp_biquads" not in preset:
-                    preset["hp_biquads"] = [butterworth_subsonic_24(preset["hp_freq"], FS, 1), butterworth_subsonic_24(preset["hp_freq"], FS, 2)]
+                    preset["hp_biquads"] = [butterworth_subsonic_24(preset["hp_freq"], FS, 1), butterworth_subsonic_24(preset["hp_freq"], FS, 0)]
                 if "eq_biquads" not in preset:
                     preset["eq_biquads"] = [parametric_eq(eq["freq"], eq["q"], eq["boost"]) for eq in preset["eq_settings"]]
             presets = loaded_presets
