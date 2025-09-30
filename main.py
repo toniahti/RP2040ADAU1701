@@ -211,7 +211,8 @@ def coeffs_to_array(b0,b1,b2,a1,a2):
 presets = [
     {
         "name": "PR1", 
-        "volume_db": -12, 
+        "volume_db": -12,
+        "gain_db": -3,
         "phase": 0, 
         "lp_freq": 80, 
         "hp_freq": 80,
@@ -223,6 +224,7 @@ presets = [
     {
         "name": "PR2", 
         "volume_db": -12, 
+        "gain_db": -3,
         "phase": 0, 
         "lp_freq": 80, 
         "hp_freq": 80,
@@ -233,7 +235,8 @@ presets = [
     },
     {
         "name": "PR3", 
-        "volume_db": -12, 
+        "volume_db": -12,
+        "gain_db": -3, 
         "phase": 0, 
         "lp_freq": 80, 
         "hp_freq": 80,
@@ -244,7 +247,8 @@ presets = [
     },
     {
         "name": "PR4", 
-        "volume_db": -12, 
+        "volume_db": -12,
+        "gain_db": -3, 
         "phase": 0, 
         "lp_freq": 80, 
         "hp_freq": 80,
@@ -255,7 +259,8 @@ presets = [
     },
     {
         "name": "PR5", 
-        "volume_db": -12, 
+        "volume_db": -12,
+        "gain_db": -3, 
         "phase": 0, 
         "lp_freq": 80, 
         "hp_freq": 80,
@@ -281,7 +286,7 @@ def save_presets():
         print(f"Error saving presets: {e}")
 
 def load_presets():
-    global presets, current_preset, volume_db, phase, lp_freq, hp_freq, eq_settings
+    global presets, current_preset, volume_db, gain_db, phase, lp_freq, hp_freq, eq_settings
     try:
         with open("/presets.json", "r") as f:
             data = ujson.load(f)
@@ -302,10 +307,11 @@ def load_presets():
         save_presets()
 
 def apply_preset(preset_idx):
-    global volume_db, phase, lp_freq, hp_freq, eq_settings, current_preset
+    global volume_db, phase, gain_db, lp_freq, hp_freq, eq_settings, current_preset
     preset = presets[preset_idx]
     volume_db = preset["volume_db"]
     phase = preset["phase"]
+    gain_db = preset["gain_db"]
     lp_freq = preset["lp_freq"]
     hp_freq = preset["hp_freq"]
     eq_settings = preset["eq_settings"]
@@ -334,22 +340,22 @@ def apply_preset(preset_idx):
     trigger_safeload()
 
     # Apply subsonic 1st stage parameters
-    b0= preset["subsonic_biquads"][0][0]
-    b1= preset["subsonic_biquads"][0][1]
-    b2= preset["subsonic_biquads"][0][2]
-    a1= preset["subsonic_biquads"][0][3]
-    a2= preset["subsonic_biquads"][0][4]
+    b0= preset["hp_biquads"][0][0]
+    b1= preset["hp_biquads"][0][1]
+    b2= preset["hp_biquads"][0][2]
+    a1= preset["hp_biquads"][0][3]
+    a2= preset["hp_biquads"][0][4]
     biquad_coeffs = coeffs_to_array(b0, b1, b2, a1, a2)
     for i in range(5):
         write_safeload(SUBSONIC_ADDR_1, biquad_coeffs[i], i)
     trigger_safeload()
 
     # Apply subsonic 2nd stage parameters
-    b0= preset["subsonic_biquads"][1][0]
-    b1= preset["subsonic_biquads"][1][1]
-    b2= preset["subsonic_biquads"][1][2]
-    a1= preset["subsonic_biquads"][1][3]
-    a2= preset["subsonic_biquads"][1][4]
+    b0= preset["hp_biquads"][1][0]
+    b1= preset["hp_biquads"][1][1]
+    b2= preset["hp_biquads"][1][2]
+    a1= preset["hp_biquads"][1][3]
+    a2= preset["hp_biquads"][1][4]
     biquad_coeffs = coeffs_to_array(b0, b1, b2, a1, a2)
     for i in range(5):
         write_safeload(SUBSONIC_ADDR_2, biquad_coeffs[i], i)
@@ -368,7 +374,7 @@ def apply_preset(preset_idx):
         trigger_safeload()
 
     # Apply volume
-    gain = 10 ** (volume_db / 20.0)
+    #gain = 10 ** (volume_db / 20.0)
     write_safeload(VOLUME_ADDR, volume(volume_db),0)
     trigger_safeload()
     
@@ -379,12 +385,17 @@ def apply_preset(preset_idx):
     print(f"Loaded preset {preset['name']}")
     save_presets()
 
+    # Apply input gain
+    #gain = 10 ** (volume_db / 20.0)
+    write_safeload(GAIN_ADDR, volume(gain_db),0)
+    trigger_safeload()
+
 # === Menu Structure ===
 menu_structure = [
     {"name": "Parameters", "children": [
         {"name": "Volume", "children": [{"name": "Value"}, {"name": "Back"}]},
         {"name": "Phase", "children": [{"name": "Value"}, {"name": "Back"}]},
-        {"name": "Static gain", "children": [{"name": "Value"}, {"name": "Back"}]},
+        {"name": "Gain", "children": [{"name": "Value"}, {"name": "Back"}]},
         {"name": "Cutoff", "children": [{"name": "Freq"}, {"name": "Back"}]},
         {"name": "Subsonic", "children": [{"name": "Freq"}, {"name": "Back"}]},
         {"name": "Param EQ", "children": [
@@ -447,7 +458,7 @@ def display_menu():
         header_text = ""
         if len(menu_stack) >= 2:
             parent_item = menu_stack[-2][0][menu_stack[-2][1]]["name"]
-            if parent_item in ["Volume", "Static gain", "Phase", "Cutoff", "Subsonic"]:
+            if parent_item in ["Volume", "Gain", "Phase", "Cutoff", "Subsonic"]:
                 header_text = f"{parent_item} {'[Edit]' if editing_parameter else ''}"
             elif parent_item.startswith("EQ"):
                 header_text = f"{parent_item} {'[Edit]' if editing_parameter else ''}"
@@ -470,7 +481,7 @@ def display_menu():
             parent_name = menu_stack[-2][0][menu_stack[-2][1]]["name"]
             if parent_name == "Volume":
                 oled.text(f"{marker} Value: {volume_db}dB", x, y)
-            elif parent_name == "Static gain":
+            elif parent_name == "Gain":
                 oled.text(f"{marker} Value: {gain_db}dB", x, y)
             elif parent_name == "Phase":
                 phase_str = "180 deg" if phase == 1 else "0 deg"
@@ -560,7 +571,7 @@ def handle_rotary():
                 trigger_safeload()
                 print(f"Phase set to {'180 deg' if phase == 180 else '0 deg'}")
                 needs_save = True
-            elif parent_name == "Static gain":
+            elif parent_name == "Gain":
                 print("staattista gainia...")
                 gain_db = max(-80, min(0, gain_db + delta))
                 write_safeload(GAIN_ADDR, volume(gain_db),0)
@@ -586,7 +597,7 @@ def handle_rotary():
                 b0_2, b1_2, b2_2, a1_2, a2_2 = butterworth_subsonic_24(hp_freq, FS, 0)
                 biquad_coeffs_1 = coeffs_to_array(b0_1, b1_1, b2_1, a1_1, a2_1)
                 biquad_coeffs_2 = coeffs_to_array(b0_2, b1_2, b2_2, a1_2, a2_2)
-                presets[current_preset]["subsonic_biquads"] = [(b0_1, b1_1, b2_1, a1_1, a2_1), (b0_2, b1_2, b2_2, a1_2, a2_2)]
+                presets[current_preset]["hp_biquads"] = [(b0_1, b1_1, b2_1, a1_1, a2_1), (b0_2, b1_2, b2_2, a1_2, a2_2)]
                 #presets[current_preset]["hp_biquads"] = [(b0_1, b1_1, b2_1, a1_1, a2_1), (b0_2, b1_2, b2_2, a1_2, a2_2)]
                 for i in range(5):
                     write_safeload(SUBSONIC_ADDR_1, biquad_coeffs_1[i], i)
@@ -637,6 +648,7 @@ def handle_rotary():
         presets[current_preset].update({
             "volume_db": volume_db,
             "phase": phase,
+            "gain_db": gain_db,
             "lp_freq": lp_freq,
             "hp_freq": hp_freq,
             "eq_settings": eq_settings,
