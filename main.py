@@ -470,7 +470,8 @@ def display_menu():
                 header_text = "Parameters"
             elif parent_item == "Presets":
                 header_text = "Presets"
-            oled.text(header_text, 0, 0)
+            x_preset = (128 - len(header_text) * 8) // 2  # Center preset (8 pixels per char)
+            oled.text(header_text, x_preset, 0)
 
     end_idx = min(scroll_offset + MAX_VISIBLE, len(current_menu))
     for visible_idx, idx in enumerate(range(scroll_offset, end_idx)):
