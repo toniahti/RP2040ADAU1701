@@ -394,9 +394,6 @@ def apply_preset(preset_idx):
 menu_structure = [
     {"name": "Parameters", "children": [
         {"name": "Volume", "children": [{"name": "Value"}, {"name": "Back"}]},
-        {"name": "Phase", "children": [{"name": "Value"}, {"name": "Back"}]},
-        {"name": "Gain", "children": [{"name": "Value"}, {"name": "Back"}]},
-        {"name": "Cutoff", "children": [{"name": "Freq"}, {"name": "Back"}]},
         {"name": "Subsonic", "children": [{"name": "Freq"}, {"name": "Back"}]},
         {"name": "Param EQ", "children": [
             {"name": "EQ1", "children": [{"name": "Freq"}, {"name": "Q"}, {"name": "Boost"}, {"name": "Back"}]},
@@ -406,6 +403,9 @@ menu_structure = [
             {"name": "EQ5", "children": [{"name": "Freq"}, {"name": "Q"}, {"name": "Boost"}, {"name": "Back"}]},
             {"name": "Back"}
         ]},
+        {"name": "Cutoff", "children": [{"name": "Freq"}, {"name": "Back"}]},
+        {"name": "Phase", "children": [{"name": "Value"}, {"name": "Back"}]},
+        {"name": "Pre Gain", "children": [{"name": "Value"}, {"name": "Back"}]},
         {"name": "Back"}
     ]},
     {"name": "Presets", "children": [
@@ -458,7 +458,7 @@ def display_menu():
         header_text = ""
         if len(menu_stack) >= 2:
             parent_item = menu_stack[-2][0][menu_stack[-2][1]]["name"]
-            if parent_item in ["Volume", "Gain", "Phase", "Cutoff", "Subsonic"]:
+            if parent_item in ["Volume", "Pre Gain", "Phase", "Cutoff", "Subsonic"]:
                 header_text = f"{parent_item} {'[Edit]' if editing_parameter else ''}"
             elif parent_item.startswith("EQ"):
                 header_text = f"{parent_item} {'[Edit]' if editing_parameter else ''}"
@@ -482,7 +482,7 @@ def display_menu():
             parent_name = menu_stack[-2][0][menu_stack[-2][1]]["name"]
             if parent_name == "Volume":
                 oled.text(f"{marker} Value: {volume_db}dB", x, y)
-            elif parent_name == "Gain":
+            elif parent_name == "Pre Gain":
                 oled.text(f"{marker} Value: {gain_db}dB", x, y)
             elif parent_name == "Phase":
                 phase_str = "180 deg" if phase == 1 else "0 deg"
@@ -572,7 +572,7 @@ def handle_rotary():
                 trigger_safeload()
                 print(f"Phase set to {'180 deg' if phase == 180 else '0 deg'}")
                 needs_save = True
-            elif parent_name == "Gain":
+            elif parent_name == "Pre Gain":
                 print("staattista gainia...")
                 gain_db = max(-80, min(0, gain_db + delta))
                 write_safeload(GAIN_ADDR, volume(gain_db),0)
