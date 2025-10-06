@@ -512,7 +512,7 @@ def button_handler(pin):
     global button_press_time, editing_parameter, needs_save
     wake_oled()
     now = time.ticks_ms()
-    if time.ticks_diff(now, button_press_time) < 300:
+    if time.ticks_diff(now, button_press_time) < 500:
         return
     button_press_time = now
     current_menu, cursor, scroll_offset = menu_stack[-1]
