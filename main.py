@@ -11,19 +11,19 @@ import framebuf
 I2C_ADDR = 0x34  # ADAU1701 I2C address
 DATA_REG = 0x810
 ADDR_REG = 0x815
-GAIN_ADDR = 0x001 # Single coefficient. Example: -80db [0x03 0x47] -40db [0x01 0x47 0xAE] 0db [0x80 0x00 0x00]
-VOLUME_ADDR = 0x002 # Single coefficient. Example: -80db [0x03 0x47] -40db [0x01 0x47 0xAE] 0db [0x80 0x00 0x00]
-PHASE_ADDR = 0x003 # Two coefficients. Either 0 degrees: [0x80 0x00 0x00] or 180 degrees: [0xFF 0x80 0x00 0x00]
+GAIN_ADDR = 0x001 # Single bytearray. Example: -80db [0x03 0x47] -40db [0x01 0x47 0xAE] 0db [0x80 0x00 0x00]
+VOLUME_ADDR = 0x002 # Single bytearray. Example: -80db [0x03 0x47] -40db [0x01 0x47 0xAE] 0db [0x80 0x00 0x00]
+PHASE_ADDR = 0x003 # Single bytearray. Either 0 degrees: [0x80 0x00 0x00] or 180 degrees: [0xFF 0x80 0x00 0x00]
 SUBSONIC_ADDR_1 = 0x004 # First stage subsonic coefficients. Five coefficients
 SUBSONIC_ADDR_2 = 0x009 # Second stage subsonic coefficients. Five coefficients
-PARAM_EQ_ADDR_1 = 0x00E # Five coefficients
-PARAM_EQ_ADDR_2 = 0x013 # Five coefficients
-PARAM_EQ_ADDR_3 = 0x018 # Five coefficients
-PARAM_EQ_ADDR_4 = 0x01D # Five coefficients
-PARAM_EQ_ADDR_5 = 0x022 # Five coefficients
+# PARAM_EQ_ADDR_1 = 0x00E # Five coefficients
+# PARAM_EQ_ADDR_2 = 0x013 # Five coefficients
+# PARAM_EQ_ADDR_3 = 0x018 # Five coefficients
+# PARAM_EQ_ADDR_4 = 0x01D # Five coefficients
+# PARAM_EQ_ADDR_5 = 0x022 # Five coefficients
 PARAM_EQ_ADDR = [0x00E, 0x013, 0x018, 0x01D, 0x022]
 LOWPASS_ADDR_1 = 0x027 # First Linkwitz-Riley 2nd order address. Five coefficients
-LOWPASS_ADDR_2 = 0x02C # Second Linkwitz-Riley 2nd order address. Five coefficients. Coefficients are the same as in lowpass_addr_1
+LOWPASS_ADDR_2 = 0x02C # Second Linkwitz-Riley 2nd order address. Five coefficients. Coefficients are the same as in LOWPASS_ADDR_1
 
 # === Constants ===
 FS = 48000  # Sample rate in Hz
