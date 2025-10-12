@@ -206,7 +206,38 @@ def coeffs_to_array(b0,b1,b2,a1,a2):
     b1_hex = float_to_fixed_point_bytes(b1)
     b2_hex = float_to_fixed_point_bytes(b2)
     return b0_hex, b1_hex, b2_hex, a1_hex, a2_hex
-   
+
+def pass_thru_dsp(): 
+    reset_array =   (
+                    [hex(0x00), hex(0x80), hex(0x00), hex(0x00)],
+                    [hex(0x00), hex(0x00), hex(0x00), hex(0x00)],
+                    [hex(0x00), hex(0x00), hex(0x00), hex(0x00)],
+                    [hex(0x00), hex(0x00), hex(0x00), hex(0x00)],
+                    [hex(0x00), hex(0x00), hex(0x00), hex(0x00)]
+                    )
+    write_safeload(GAIN_ADDR, reset_array[0], 0)
+    trigger_safeload()
+    write_safeload(VOLUME_ADDR, reset_array[0], 0)
+    trigger_safeload()
+    write_safeload(PHASE_ADDR, reset_array[0], 0)
+    trigger_safeload()
+    for i in range (5):
+        write_safeload(SUBSONIC_ADDR_1, reset_array[i], i)
+    trigger_safeload()
+    for i in range (5):
+        write_safeload(SUBSONIC_ADDR_2, reset_array[i], i)
+    trigger_safeload()
+    for i in range (5):
+        for a in range(5):
+            write_safeload(PARAM_EQ_ADDR[i], reset_array[a], a)
+        trigger_safeload()
+    for i in range (5):
+        write_safeload(LOWPASS_ADDR_1, reset_array[i], i)
+    trigger_safeload()
+    for i in range (5):
+        write_safeload(LOWPASS_ADDR_2, reset_array[i], i)
+    trigger_safeload()
+
 # === Preset Management ===
 presets = [
     {
@@ -438,6 +469,8 @@ time.sleep_ms(2000)
 oled.fill(0)
 oled.blit(fb_rp, 0, 0)
 oled.show()
+#pass_thru_dsp()
+#time.sleep_ms(10000)
 load_presets()
 time.sleep_ms(2000)
 oled.fill(0)
