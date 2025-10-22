@@ -16,11 +16,6 @@ VOLUME_ADDR = 0x002 # Single bytearray. Example: -80db [0x03 0x47] -40db [0x01 0
 PHASE_ADDR = 0x003 # Single bytearray. Either 0 degrees: [0x80 0x00 0x00] or 180 degrees: [0xFF 0x80 0x00 0x00]
 SUBSONIC_ADDR_1 = 0x004 # First stage subsonic coefficients. Five coefficients
 SUBSONIC_ADDR_2 = 0x009 # Second stage subsonic coefficients. Five coefficients
-# PARAM_EQ_ADDR_1 = 0x00E # Five coefficients
-# PARAM_EQ_ADDR_2 = 0x013 # Five coefficients
-# PARAM_EQ_ADDR_3 = 0x018 # Five coefficients
-# PARAM_EQ_ADDR_4 = 0x01D # Five coefficients
-# PARAM_EQ_ADDR_5 = 0x022 # Five coefficients
 PARAM_EQ_ADDR = [0x00E, 0x013, 0x018, 0x01D, 0x022]
 LOWPASS_ADDR_1 = 0x027 # First Linkwitz-Riley 2nd order address. Five coefficients
 LOWPASS_ADDR_2 = 0x02C # Second Linkwitz-Riley 2nd order address. Five coefficients. Coefficients are the same as in LOWPASS_ADDR_1
@@ -34,7 +29,6 @@ SAVE_DELAY_MS = 2000  # Delay before saving presets to flash (2 seconds)
 i2c_adau = I2C(0, scl=Pin(5), sda=Pin(4), freq=400000)
 
 # === I2C OLED Setup ===
-#i2c = I2C(0, scl=Pin(5), sda=Pin(4))
 i2c_oled = I2C(1, scl=Pin(3), sda=Pin(2))
 oled = SSD1306_I2C(128, 64, i2c_oled)
 
@@ -169,12 +163,29 @@ def write_safeload(addr_coeff, biquad, index):
     addr_coeff_array = bytearray([(addr_coeff >> 8) & 0xFF, addr_coeff & 0xFF])
     addr_coeff_array[-1] = (addr_coeff_array[-1] + index) & 0xFF
     combined_addr=bytes(addr_reg_array)+bytes(addr_coeff_array)
+    
     #write to ADAU1701
-    i2c_adau.writeto(I2C_ADDR, combined_data)
-    i2c_adau.writeto(I2C_ADDR, combined_addr)
+    try:
+        i2c_adau.writeto(I2C_ADDR, combined_data)
+    except OSError as e:
+        oled.fill(0)
+        oled.text(f"DSP write error!", 0, 28)
+        oled.show()
+
+    try:
+        i2c_adau.writeto(I2C_ADDR, combined_addr)
+    except OSError as e:
+        oled.fill(0)
+        oled.text("DSP write error!", 0, 28)
+        oled.show()
 
 def trigger_safeload():
-    i2c_adau.writeto(I2C_ADDR, bytes([0x08, 0x1c, 0x00, 0x3c]))
+    try:
+        i2c_adau.writeto(I2C_ADDR, bytes([0x08, 0x1c, 0x00, 0x3c]))
+    except OSError as e:
+        oled.fill(0)
+        oled.text("DSP write error!", 0, 28)
+        oled.show()
 
 def float_to_fixed_point_bytes(value):
     # Fixed-point format: 5 integer bits, 23 fractional bits
@@ -405,7 +416,6 @@ def apply_preset(preset_idx):
         trigger_safeload()
 
     # Apply volume
-    #gain = 10 ** (volume_db / 20.0)
     write_safeload(VOLUME_ADDR, volume(volume_db),0)
     trigger_safeload()
     
@@ -596,17 +606,17 @@ def handle_rotary():
                 gain = 10 ** (volume_db / 20.0)
                 write_safeload(VOLUME_ADDR, volume(volume_db),0)
                 trigger_safeload()
-                print(f"Volume set to {volume_db}dB (gain={gain:.6f})")
+                #print(f"Volume set to {volume_db}dB (gain={gain:.6f})")
                 needs_save = True
             elif parent_name == "Phase":
                 phase = 1 if phase == 0 else 0  # Toggle between 0 and 1
                 phase_conv = 180 if phase == 1 else 0
                 write_safeload(PHASE_ADDR, phase_calc(phase_conv),0)
                 trigger_safeload()
-                print(f"Phase set to {'180 deg' if phase == 180 else '0 deg'}")
+                #print(f"Phase set to {'180 deg' if phase == 180 else '0 deg'}")
                 needs_save = True
             elif parent_name == "Pre Gain":
-                print("staattista gainia...")
+                #print("staattista gainia...")
                 gain_db = max(-80, min(0, gain_db + delta))
                 write_safeload(GAIN_ADDR, volume(gain_db),0)
                 trigger_safeload()
@@ -623,7 +633,7 @@ def handle_rotary():
                 for i in range(5):
                     write_safeload(LOWPASS_ADDR_2, biquad_coeffs[i], i)
                 trigger_safeload()
-                print(f"LP Biquad: b0={b0:.6f} b1={b1:.6f} b2={b2:.6f} a1={a1:.6f} a2={a2:.6f}")
+                #print(f"LP Biquad: b0={b0:.6f} b1={b1:.6f} b2={b2:.6f} a1={a1:.6f} a2={a2:.6f}")
                 needs_save = True
             elif parent_name == "Subsonic":
                 hp_freq = max(10, min(40, hp_freq + delta))
@@ -639,8 +649,8 @@ def handle_rotary():
                 for i in range(5):
                     write_safeload(SUBSONIC_ADDR_2, biquad_coeffs_2[i], i)
                 trigger_safeload()
-                print(f"HP Biquad1: b0={b0_1:.6f} b1={b1_1:.6f} b2={b2_1:.6f} a1={a1_1:.6f} a2={a2_1:.6f}")
-                print(f"HP Biquad2: b0={b0_2:.6f} b1={b1_2:.6f} b2={b2_2:.6f} a1={a1_2:.6f} a2={a2_2:.6f}")
+                #print(f"HP Biquad1: b0={b0_1:.6f} b1={b1_1:.6f} b2={b2_1:.6f} a1={a1_1:.6f} a2={a2_1:.6f}")
+                #print(f"HP Biquad2: b0={b0_2:.6f} b1={b1_2:.6f} b2={b2_2:.6f} a1={a1_2:.6f} a2={a2_2:.6f}")
                 needs_save = True
             elif parent_name.startswith("EQ"):
                 eq_idx = menu_stack[-2][1]
@@ -652,7 +662,7 @@ def handle_rotary():
                 for i in range(5):
                     write_safeload(PARAM_EQ_ADDR[eq_idx], biquad_coeffs[i], i)
                 trigger_safeload()
-                print(f"EQ{eq_idx+1}: b0={b0:.6f} b1={b1:.6f} b2={b2:.6f} a1={a1:.6f} a2={a2:.6f}")
+                #print(f"EQ{eq_idx+1}: b0={b0:.6f} b1={b1:.6f} b2={b2:.6f} a1={a1:.6f} a2={a2:.6f}")
                 needs_save = True
         elif item["name"] == "Q":
             eq_idx = menu_stack[-2][1]
@@ -663,20 +673,20 @@ def handle_rotary():
             for i in range(5):
                 write_safeload(PARAM_EQ_ADDR[eq_idx], biquad_coeffs[i], i)
             trigger_safeload()
-            print(f"EQ{eq_idx+1}: b0={b0:.6f} b1={b1:.6f} b2={b2:.6f} a1={a1:.6f} a2={a2:.6f}")
+            #print(f"EQ{eq_idx+1}: b0={b0:.6f} b1={b1:.6f} b2={b2:.6f} a1={a1:.6f} a2={a2:.6f}")
             needs_save = True
         elif item["name"] == "Boost":
             eq_idx = menu_stack[-2][1]
             eq_settings[eq_idx]["boost"] = round(max(-12, min(12, eq_settings[eq_idx]["boost"] + delta * 0.1)),1)
             b0, b1, b2, a1, a2 = parametric_eq(round(eq_settings[eq_idx]["freq"]), round(eq_settings[eq_idx]["q"],1), eq_settings[eq_idx]["boost"])
             biquad_coeffs = coeffs_to_array(b0, b1, b2, a1, a2)
-            print(eq_settings[eq_idx]["freq"], eq_settings[eq_idx]["q"], eq_settings[eq_idx]["boost"])
-            print(b0, b1, b2, a1, a2)
+            #print(eq_settings[eq_idx]["freq"], eq_settings[eq_idx]["q"], eq_settings[eq_idx]["boost"])
+            #print(b0, b1, b2, a1, a2)
             presets[current_preset]["eq_biquads"][eq_idx] = (b0, b1, b2, a1, a2)
             for i in range(5):
                 write_safeload(PARAM_EQ_ADDR[eq_idx], biquad_coeffs[i], i)
             trigger_safeload()
-            print(f"EQ{eq_idx+1}: b0={b0:.6f} b1={b1:.6f} b2={b2:.6f} a1={a1:.6f} a2={a2:.6f}")
+            #print(f"EQ{eq_idx+1}: b0={b0:.6f} b1={b1:.6f} b2={b2:.6f} a1={a1:.6f} a2={a2:.6f}")
             needs_save = True
         # Save updated settings to current preset
         presets[current_preset].update({
