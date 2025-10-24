@@ -645,8 +645,11 @@ def button_handler(pin):
     global button_press_time, editing_parameter, needs_save
     wake_oled()
     now = time.ticks_ms()
-    if time.ticks_diff(now, button_press_time) < 800:
+    if time.ticks_diff(now, button_press_time) < 500:
         return
+    
+    print("Button pressed: ", time.ticks_diff(now, button_press_time))
+
     button_press_time = now
     current_menu, cursor, scroll_offset = menu_stack[-1]
     item = current_menu[cursor]
@@ -670,13 +673,17 @@ def button_handler(pin):
     elif item["name"] == "Rename preset":
         print("Rename preset not implemented")  # Placeholder
     elif item["name"] == "Show graph":
+        print("showing graph...")   
+        editing_parameter = False
         oled.fill(0)
         plot_graph()
         time.sleep_ms(2000)
+        wake_oled()
         button_press_time = now
     display_menu()
 
 # Register button interrupt
+#SW.irq(trigger=Pin.IRQ_RISING, handler=button_handler(time.ticks_ms()))
 SW.irq(trigger=Pin.IRQ_RISING, handler=button_handler)
 
 # === Rotary Handler ===
