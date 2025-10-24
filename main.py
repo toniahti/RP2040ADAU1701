@@ -1,5 +1,6 @@
 import time
 import math
+import cmath
 import ujson
 from machine import Pin, I2C
 from ssd1306 import SSD1306_I2C
@@ -26,6 +27,13 @@ ADAU1701_ADDR = 0x34  # ADAU1701 I2C address (for future use)
 MAX_VISIBLE = 5  # Maximum visible menu items (adjust based on display height)
 SAVE_DELAY_MS = 2000  # Delay before saving presets to flash (2 seconds)
 
+# --- Grid area (inset for ticks) ---
+LEFT_PAD, RIGHT_PAD = 24, 6
+TOP_PAD, BOTTOM_PAD = 6, 12
+GRID_W = 128 - LEFT_PAD - RIGHT_PAD
+GRID_H = 64 - TOP_PAD - BOTTOM_PAD
+
+# === I2C ADAU1701 Setup ===
 i2c_adau = I2C(0, scl=Pin(5), sda=Pin(4), freq=400000)
 
 # === I2C OLED Setup ===
@@ -431,6 +439,86 @@ def apply_preset(preset_idx):
     write_safeload(GAIN_ADDR, volume(gain_db),0)
     trigger_safeload()
 
+# --- Frequency response calculation ---
+def generate_coeffs_table():
+    global coeffs_table
+    coeffs_table = [
+        butterworth_subsonic_24(hp_freq, FS, 1), 
+        butterworth_subsonic_24(hp_freq, FS, 0),
+        parametric_eq(eq_settings[0]["freq"], eq_settings[0]["q"], eq_settings[0]["boost"]),
+        parametric_eq(eq_settings[1]["freq"], eq_settings[1]["q"], eq_settings[1]["boost"]),
+        parametric_eq(eq_settings[2]["freq"], eq_settings[2]["q"], eq_settings[2]["boost"]),
+        parametric_eq(eq_settings[3]["freq"], eq_settings[3]["q"], eq_settings[3]["boost"]),
+        parametric_eq(eq_settings[4]["freq"], eq_settings[4]["q"], eq_settings[4]["boost"]),
+        linkwitz_riley_lowpass(lp_freq, FS),
+        linkwitz_riley_lowpass(lp_freq, FS)
+    ]
+    #print (coeffs_table)
+
+def cascaded_response(freq):
+    w = 2 * math.pi * freq / FS
+    z = cmath.exp(-1j * w)
+    h_total = 1
+
+    for a in coeffs_table:
+        num = a[0] + a[1]*z**-1 + a[2]*z**-2
+        den = 1 + a[3]*z**-1 + a[4]*z**-2
+        h_total *= num / den
+    return abs(h_total)
+
+# --- Draw grid and ticks ---
+def draw_grid():
+    # Draw rectangle border
+    x0, x1 = LEFT_PAD, 128 - RIGHT_PAD - 1
+    y0, y1 = TOP_PAD, 64 - BOTTOM_PAD - 1
+    oled.hline(x0, y0, x1-x0, 1)
+    oled.hline(x0, y1, x1-x0, 1)
+    oled.vline(x0, y0, y1-y0, 1)
+    oled.vline(x1, y0, y1-y0, 1)
+
+    # Horizontal grid lines and dB ticks
+    for db in range(-12, 13, 6):
+        y = int(y0 + (12 - db) * (GRID_H) / 24)
+        oled.hline(x0, y, x1-x0, 1)
+        label = "{:>3}".format(db)
+        oled.text(label, 0, y-4, 1)
+
+    # Vertical grid lines and frequency ticks (logarithmic scale)
+    log_fmin = math.log10(10)
+    log_fmax = math.log10(200)
+    #for freq in [20, 40, 60, 80, 100, 120, 140]:
+    for freq in [10,20, 40, 80, 140]:
+        frac = (math.log10(freq) - log_fmin) / (log_fmax - log_fmin)
+        x = int(x0 + frac * (GRID_W-1))
+        oled.vline(x, y0, y1-y0, 1)
+        label = str(freq)
+        oled.text(label, x-8, y1+6, 1)
+
+def plot_graph():
+    draw_grid()
+    generate_coeffs_table()
+    log_fmin = math.log10(10)
+    log_fmax = math.log10(200)
+    prev_y = None
+    for xi in range(GRID_W):
+        frac = xi / (GRID_W-1)
+        freq = 10 ** (log_fmin + frac * (log_fmax - log_fmin))
+        mag = cascaded_response(freq)
+        db = 20 * math.log10(mag) if mag > 0 else -12
+        db = max(-12, min(12, db))  # Clip to -12dB..+12dB
+        y = int(TOP_PAD + (12 - db) * (GRID_H) / 24)
+        x = LEFT_PAD + xi
+        if 0 <= x < 128 and 0 <= y < 64:
+            oled.pixel(x, y, 1)
+            # Optionally connect points for a solid line:
+            if prev_y is not None:
+                y1, y2 = min(y, prev_y), max(y, prev_y)
+                for yy in range(y1, y2+1):
+                    oled.pixel(x, yy, 1)
+            prev_y = y
+    oled.show()
+    print("Frequency response drawn on SSD1306 OLED with inset grid and ticks.")
+
 # === Menu Structure ===
 menu_structure = [
     {"name": "Parameters", "children": [
@@ -455,7 +543,8 @@ menu_structure = [
         ]},
         {"name": "Rename preset"},
         {"name": "Back"}
-    ]}
+    ]},
+    {"name": "Show graph"}
 ]
 
 # === State Variables ===
@@ -485,6 +574,7 @@ load_presets()
 time.sleep_ms(2000)
 oled.fill(0)
 oled.show()
+
 
 # === Display Function ===
 def display_menu():
@@ -579,6 +669,11 @@ def button_handler(pin):
         display_menu()
     elif item["name"] == "Rename preset":
         print("Rename preset not implemented")  # Placeholder
+    elif item["name"] == "Show graph":
+        oled.fill(0)
+        plot_graph()
+        time.sleep_ms(2000)
+        button_press_time = now
     display_menu()
 
 # Register button interrupt
