@@ -639,13 +639,19 @@ def display_menu():
             oled.text(f"{marker} {item['name']}", x, y)
     oled.show()
 
+#Show frequence response on boot
+
+plot_graph()
+time.sleep_ms(5000)
+wake_oled()
+    
 # === Button Handler ===
 button_press_time = 0
 def button_handler(pin):
     global button_press_time, editing_parameter, needs_save
     wake_oled()
     now = time.ticks_ms()
-    if time.ticks_diff(now, button_press_time) < 500:
+    if time.ticks_diff(now, button_press_time) < 700:
         return
     
     print("Button pressed: ", time.ticks_diff(now, button_press_time))
@@ -677,9 +683,9 @@ def button_handler(pin):
         editing_parameter = False
         oled.fill(0)
         plot_graph()
-        time.sleep_ms(2000)
+        time.sleep_ms(5000)
         wake_oled()
-        button_press_time = now
+        button_press_time = now + 1500
     display_menu()
 
 # Register button interrupt
