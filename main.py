@@ -18,13 +18,13 @@ PHASE_ADDR = 0x007 # Single bytearray. Either 0 degrees: [0x80 0x00 0x00] or 180
 SUBSONIC_ADDR_1 = 0x008 # First stage subsonic coefficients. Five coefficients
 SUBSONIC_ADDR_2 = 0x00D # Second stage subsonic coefficients. Five coefficients
 PARAM_EQ_ADDR = [0x012, 0x017, 0x01C, 0x021, 0x026]
-LOWPASS_ADDR_1 = 0x02C # First Linkwitz-Riley 2nd order address. Five coefficients
+LOWPASS_ADDR_1 = 0x02B # First Linkwitz-Riley 2nd order address. Five coefficients
 LOWPASS_ADDR_2 = 0x030 # Second Linkwitz-Riley 2nd order address. Five coefficients. Coefficients are the same as in LOWPASS_ADDR_1
 
 # === Constants ===
 FS = 48000  # Sample rate in Hz
 ADAU1701_ADDR = 0x34  # ADAU1701 I2C address (for future use)
-MAX_VISIBLE = 5  # Maximum visible menu items (adjust based on display height)
+MAX_VISIBLE = 4  # Maximum visible menu items (adjust based on display height)
 SAVE_DELAY_MS = 2000  # Delay before saving presets to flash (2 seconds)
 
 # --- Grid area (inset for ticks) ---
@@ -583,7 +583,7 @@ def display_menu():
     if len(menu_stack) == 1:  # Top-level menu
         header_text = "Main menu"
         x_header = (128 - len(header_text) * 8) // 2  # Center header (8 pixels per char)
-        oled.text(header_text, x_header, 0)
+        oled.text(header_text, x_header, 5)
         preset_text = f"Preset: PR{current_preset + 1}"
         x_preset = (128 - len(preset_text) * 8) // 2  # Center preset (8 pixels per char)
         oled.text(preset_text, x_preset, 56)  # Bottom of 64-pixel display
@@ -604,13 +604,13 @@ def display_menu():
             elif parent_item == "Presets":
                 header_text = "Presets"
             x_preset = (128 - len(header_text) * 8) // 2  # Center preset (8 pixels per char)
-            oled.text(header_text, x_preset, 0)
+            oled.text(header_text, x_preset, 5)
 
     end_idx = min(scroll_offset + MAX_VISIBLE, len(current_menu))
     for visible_idx, idx in enumerate(range(scroll_offset, end_idx)):
         item = current_menu[idx]
         marker = ">" if idx == cursor else " "
-        x, y = 0, 16 + visible_idx * 10
+        x, y = 0, 20 + visible_idx * 10
         if item["name"] == "Value":
             parent_name = menu_stack[-2][0][menu_stack[-2][1]]["name"]
             if parent_name == "Volume":
