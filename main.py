@@ -685,7 +685,7 @@ def button_handler(pin):
         plot_graph()
         time.sleep_ms(5000)
         wake_oled()
-        button_press_time = now - 6000
+        button_press_time = now + 6000
     display_menu()
 
 # Register button interrupt
