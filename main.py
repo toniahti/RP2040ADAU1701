@@ -12,14 +12,14 @@ import framebuf # type: ignore
 I2C_ADDR = 0x34  # ADAU1701 I2C address
 DATA_REG = 0x810
 ADDR_REG = 0x815
-GAIN_ADDR = 0x005 # Single bytearray. Example: -80db [0x03 0x47] -40db [0x01 0x47 0xAE] 0db [0x80 0x00 0x00]
-VOLUME_ADDR = 0x006 # Single bytearray. Example: -80db [0x03 0x47] -40db [0x01 0x47 0xAE] 0db [0x80 0x00 0x00]
-PHASE_ADDR = 0x007 # Single bytearray. Either 0 degrees: [0x80 0x00 0x00] or 180 degrees: [0xFF 0x80 0x00 0x00]
-SUBSONIC_ADDR_1 = 0x008 # First stage subsonic coefficients. Five coefficients
-SUBSONIC_ADDR_2 = 0x00D # Second stage subsonic coefficients. Five coefficients
-PARAM_EQ_ADDR = [0x012, 0x017, 0x01C, 0x021, 0x026]
-LOWPASS_ADDR_1 = 0x02B # First Linkwitz-Riley 2nd order address. Five coefficients
-LOWPASS_ADDR_2 = 0x030 # Second Linkwitz-Riley 2nd order address. Five coefficients. Coefficients are the same as in LOWPASS_ADDR_1
+GAIN_ADDR = 0x006 # Single bytearray. Example: -80db [0x03 0x47] -40db [0x01 0x47 0xAE] 0db [0x80 0x00 0x00]
+VOLUME_ADDR = 0x007 # Single bytearray. Example: -80db [0x03 0x47] -40db [0x01 0x47 0xAE] 0db [0x80 0x00 0x00]
+PHASE_ADDR = 0x008 # Single bytearray. Either 0 degrees: [0x80 0x00 0x00] or 180 degrees: [0xFF 0x80 0x00 0x00]
+SUBSONIC_ADDR_1 = 0x009 # First stage subsonic coefficients. Five coefficients
+SUBSONIC_ADDR_2 = 0x00E # Second stage subsonic coefficients. Five coefficients
+PARAM_EQ_ADDR = [0x013, 0x018, 0x01D, 0x022, 0x027]
+LOWPASS_ADDR_1 = 0x02C # First Linkwitz-Riley 2nd order address. Five coefficients
+LOWPASS_ADDR_2 = 0x031 # Second Linkwitz-Riley 2nd order address. Five coefficients. Coefficients are the same as in LOWPASS_ADDR_1
 
 # === Constants ===
 FS = 48000  # Sample rate in Hz
