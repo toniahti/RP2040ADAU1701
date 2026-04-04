@@ -2,12 +2,15 @@ import time
 import math
 import cmath
 import ujson
-from machine import Pin, I2C # type: ignore
-from ssd1306 import SSD1306_I2C
+import machine # type: ignore
+from machine import Pin, I2C, PWM # type: ignore
+import st7789 # type: ignore
+#from ssd1306 import SSD1306_I2C
 from rotary_irq_rp2 import RotaryIRQ
-import image_rp #raspberry pi pico logo
-import image_ad #analog devices logo
-import framebuf # type: ignore
+#import image_rp #raspberry pi pico logo
+#import image_ad #analog devices logo
+#import framebuf # type: ignore
+import vga1_8x16 as font # type: ignore
 
 I2C_ADDR = 0x34  # ADAU1701 I2C address
 DATA_REG = 0x810
@@ -34,17 +37,45 @@ GRID_W = 128 - LEFT_PAD - RIGHT_PAD
 GRID_H = 64 - TOP_PAD - BOTTOM_PAD
 
 # === I2C ADAU1701 Setup ===
-i2c_adau = I2C(0, scl=Pin(5), sda=Pin(4), freq=400000)
+i2c_adau = I2C(0, scl=Pin(1), sda=Pin(0), freq=400000)
 
-# === I2C OLED Setup ===
-i2c_oled = I2C(1, scl=Pin(3), sda=Pin(2))
-oled = SSD1306_I2C(128, 64, i2c_oled)
+# # === I2C OLED Setup ===
+# i2c_oled = I2C(1, scl=Pin(3), sda=Pin(2))
+# oled = SSD1306_I2C(128, 64, i2c_oled)
+
+# SPI TFT Control pins
+dc  = Pin(6, Pin.OUT)   # GP6
+rst = Pin(7, Pin.OUT)   # GP7
+cs  = Pin(5, Pin.OUT)   # GP5
+
+# === SPI TFT Setup ===
+spi = machine.SPI(
+    0,
+    baudrate=40000000,
+    polarity=1,
+    phase=1,
+    sck=machine.Pin(2),
+    mosi=machine.Pin(3)
+)
+
+display = st7789.ST7789(
+    spi,
+    170,
+    320,
+    reset=rst,
+    dc=dc,
+    cs=cs,
+    rotation=1    
+)
+
+# === SPI TFT Backlight ===
+pwm = PWM(Pin(4))
 
 # === Rotary Encoder & Button Setup ===
-SW = Pin(6, Pin.IN, Pin.PULL_UP)
+SW = Pin(14, Pin.IN, Pin.PULL_UP)
 r = RotaryIRQ(
-    pin_num_clk=8,
-    pin_num_dt=7,
+    pin_num_clk=26,
+    pin_num_dt=15,
     min_val=0,
     max_val=1000,
     reverse=True,
@@ -55,27 +86,28 @@ r = RotaryIRQ(
 # === Screen Saver ===
 dim_after_ms = 10000
 off_after_ms = 20000
-oled_on = True
+display.init()
+pwm.duty_u16(65534) # 0-65534
 last_activity = time.ticks_ms()
 
-def wake_oled():
-    global oled_on, last_activity
+def wake_tft():
+    global tft_on, last_activity
     last_activity = time.ticks_ms()
-    oled.contrast(255)  # Restore full brightness
-    oled_on = True
+    pwm.duty_u16(65534)  # Restore full brightness
+    tft_on = True
     display_menu()
 
-def handle_oled_timeout():
-    global oled_on
+def handle_tft_timeout():
+    global tft_on
     now = time.ticks_ms()
     idle_time = time.ticks_diff(now, last_activity)
-    if idle_time > off_after_ms and oled_on:
-        oled.fill(0)
-        oled.show()
-        oled.contrast(0)
-        oled_on = False
-    elif idle_time > dim_after_ms and oled_on:
-        oled.contrast(10)
+    if idle_time > off_after_ms and tft_on:
+        display.fill(0)
+        #oled.show()
+        pwm.duty_u16(0)
+        tft_on = False
+    elif idle_time > dim_after_ms and tft_on:
+        pwm.duty_u16(1024)
 
 def parametric_eq(frequency, q, boost):
     gain = 0
@@ -176,24 +208,25 @@ def write_safeload(addr_coeff, biquad, index):
     try:
         i2c_adau.writeto(I2C_ADDR, combined_data)
     except OSError as e:
-        oled.fill(0)
-        oled.text(f"DSP write error!", 0, 28)
-        oled.show()
+        display.fill(0)
+        #display.text(f"DSP write error!", 0, 28)
+        display.text(font, "DSP write error!", 8, 8, st7789.WHITE)
+        #oled.show()
 
     try:
         i2c_adau.writeto(I2C_ADDR, combined_addr)
     except OSError as e:
-        oled.fill(0)
-        oled.text("DSP write error!", 0, 28)
-        oled.show()
+        display.fill(0)
+        display.text(font, "DSP write error!", 8, 8, st7789.WHITE)
+        #oled.show()
 
 def trigger_safeload():
     try:
         i2c_adau.writeto(I2C_ADDR, bytes([0x08, 0x1c, 0x00, 0x3c]))
     except OSError as e:
-        oled.fill(0)
-        oled.text("DSP write error!", 0, 28)
-        oled.show()
+        display.fill(0)
+        display.text(font, "DSP write error!", 8, 8, st7789.WHITE)
+        #oled.show()
 
 def float_to_fixed_point_bytes(value):
     # Fixed-point format: 5 integer bits, 23 fractional bits
@@ -469,30 +502,34 @@ def cascaded_response(freq):
 # --- Draw grid and ticks ---
 def draw_grid():
     # Draw rectangle border
-    x0, x1 = LEFT_PAD, 128 - RIGHT_PAD - 1
-    y0, y1 = TOP_PAD, 64 - BOTTOM_PAD - 1
-    oled.hline(x0, y0, x1-x0, 1)
-    oled.hline(x0, y1, x1-x0, 1)
-    oled.vline(x0, y0, y1-y0, 1)
-    oled.vline(x1, y0, y1-y0, 1)
+    x0, x1 = 30, 320 - 8
+    y0, y1 = 24, 170 - 22
+    display.hline(x0, y0, x1-x0, st7789.WHITE)
+    display.hline(x0, y1, x1-x0, st7789.WHITE)
+    display.vline(x0, y0, y1-y0, st7789.WHITE)
+    display.vline(x1, y0, y1-y0, st7789.WHITE)
 
     # Horizontal grid lines and dB ticks
-    for db in range(-12, 13, 6):
-        y = int(y0 + (12 - db) * (GRID_H) / 24)
-        oled.hline(x0, y, x1-x0, 1)
+    grid_min = -18 #db
+    grid_max = 6 + 1 # Plus 1 dB for the loop
+    grid_step = 3 #db
+    grid_range = grid_max - 1 - grid_min
+    for db in range(grid_min, grid_max, grid_step):
+        y = int(y0 + (grid_max-1 - db) * ((y1 - y0) / grid_range))
+        display.hline(x0, y, x1-x0, st7789.WHITE)
         label = "{:>3}".format(db)
-        oled.text(label, 0, y-4, 1)
+        display.text(font, label, 0, y-6, st7789.WHITE)
 
     # Vertical grid lines and frequency ticks (logarithmic scale)
     log_fmin = math.log10(10)
     log_fmax = math.log10(200)
-    #for freq in [20, 40, 60, 80, 100, 120, 140]:
-    for freq in [10,20, 40, 80, 140]:
+    for freq in [10, 20, 50, 80, 120]:
+    #for freq in [10,20, 40, 80, 140]:
         frac = (math.log10(freq) - log_fmin) / (log_fmax - log_fmin)
         x = int(x0 + frac * (GRID_W-1))
-        oled.vline(x, y0, y1-y0, 1)
+        display.vline(x, y0, y1-y0, st7789.WHITE)
         label = str(freq)
-        oled.text(label, x-8, y1+6, 1)
+        display.text(font, label, x-8, y1+6, st7789.WHITE)
 
 def plot_graph():
     draw_grid()
@@ -509,14 +546,14 @@ def plot_graph():
         y = int(TOP_PAD + (12 - db) * (GRID_H) / 24)
         x = LEFT_PAD + xi
         if 0 <= x < 128 and 0 <= y < 64:
-            oled.pixel(x, y, 1)
+            display.pixel(x, y, ST7789.WHITE)
             # Optionally connect points for a solid line:
             if prev_y is not None:
                 y1, y2 = min(y, prev_y), max(y, prev_y)
                 for yy in range(y1, y2+1):
-                    oled.pixel(x, yy, 1)
+                    display.pixel(x, yy, ST7789.WHITE)
             prev_y = y
-    oled.show()
+    #oled.show()
     print("Frequency response drawn on SSD1306 OLED with inset grid and ticks.")
 
 # === Menu Structure ===
@@ -560,33 +597,33 @@ last_save_time = 0  # Timestamp of last parameter change
 needs_save = False  # Flag to indicate pending save
 
 # === Show boot logos and load Last Preset on Boot ===
-fb_ad = framebuf.FrameBuffer(image_ad.ad, 128, 64, framebuf.MONO_VLSB)
-fb_rp = framebuf.FrameBuffer(image_rp.rp, 128, 64, framebuf.MONO_VLSB)
-oled.blit(fb_ad, 0, 0)
-oled.show()
-time.sleep_ms(2000)
-oled.fill(0)
-oled.blit(fb_rp, 0, 0)
-oled.show()
+# fb_ad = framebuf.FrameBuffer(image_ad.ad, 128, 64, framebuf.MONO_VLSB)
+# fb_rp = framebuf.FrameBuffer(image_rp.rp, 128, 64, framebuf.MONO_VLSB)
+# oled.blit(fb_ad, 0, 0)
+# oled.show()
+# time.sleep_ms(2000)
+# oled.fill(0)
+# oled.blit(fb_rp, 0, 0)
+# oled.show()
 #pass_thru_dsp()
 #time.sleep_ms(10000)
 load_presets()
 time.sleep_ms(2000)
-oled.fill(0)
-oled.show()
+display.fill(0)
+#oled.show()
 
 
 # === Display Function ===
 def display_menu():
-    oled.fill(0)
+    display.fill(0)
     current_menu, cursor, scroll_offset = menu_stack[-1]
     if len(menu_stack) == 1:  # Top-level menu
         header_text = "Main menu"
         x_header = (128 - len(header_text) * 8) // 2  # Center header (8 pixels per char)
-        oled.text(header_text, x_header, 5)
+        display.text(font, header_text, x_header, 5)
         preset_text = f"Preset: PR{current_preset + 1}"
         x_preset = (128 - len(preset_text) * 8) // 2  # Center preset (8 pixels per char)
-        oled.text(preset_text, x_preset, 56)  # Bottom of 64-pixel display
+        display.text(font, preset_text, x_preset, 56)  # Bottom of 64-pixel display
     else:  # Sub-menus
         header_text = ""
         if len(menu_stack) >= 2:
@@ -604,7 +641,7 @@ def display_menu():
             elif parent_item == "Presets":
                 header_text = "Presets"
             x_preset = (128 - len(header_text) * 8) // 2  # Center preset (8 pixels per char)
-            oled.text(header_text, x_preset, 5)
+            display.text(font, header_text, x_preset, 5)
 
     end_idx = min(scroll_offset + MAX_VISIBLE, len(current_menu))
     for visible_idx, idx in enumerate(range(scroll_offset, end_idx)):
@@ -614,42 +651,42 @@ def display_menu():
         if item["name"] == "Value":
             parent_name = menu_stack[-2][0][menu_stack[-2][1]]["name"]
             if parent_name == "Volume":
-                oled.text(f"{marker} Value: {volume_db}dB", x, y)
+                display.text(font, f"{marker} Value: {volume_db}dB", x, y)
             elif parent_name == "Pre Gain":
-                oled.text(f"{marker} Value: {gain_db}dB", x, y)
+                display.text(font, f"{marker} Value: {gain_db}dB", x, y)
             elif parent_name == "Phase":
                 phase_str = "180 deg" if phase == 1 else "0 deg"
-                oled.text(f"{marker} Value: {phase_str}", x, y)
+                display.text(font, f"{marker} Value: {phase_str}", x, y)
         elif item["name"] == "Freq":
             parent_name = menu_stack[-2][0][menu_stack[-2][1]]["name"]
             if parent_name == "Cutoff":
-                oled.text(f"{marker} Freq: {lp_freq}Hz", x, y)
+                display.text(font, f"{marker} Freq: {lp_freq}Hz", x, y)
             elif parent_name == "Subsonic":
-                oled.text(f"{marker} Freq: {hp_freq}Hz", x, y)
+                display.text(font, f"{marker} Freq: {hp_freq}Hz", x, y)
             elif parent_name.startswith("EQ"):
                 eq_idx = menu_stack[-2][1]
-                oled.text(f"{marker} Freq: {eq_settings[eq_idx]['freq']}Hz", x, y)
+                display.text(font, f"{marker} Freq: {eq_settings[eq_idx]['freq']}Hz", x, y)
         elif item["name"] == "Q":
             eq_idx = menu_stack[-2][1]
-            oled.text(f"{marker} Q: {eq_settings[eq_idx]['q']:.1f}", x, y)
+            display.text(font, f"{marker} Q: {eq_settings[eq_idx]['q']:.1f}", x, y)
         elif item["name"] == "Boost":
             eq_idx = menu_stack[-2][1]
-            oled.text(f"{marker} Boost: {eq_settings[eq_idx]['boost']:.1f}dB", x, y)
+            display.text(font, f"{marker} Boost: {eq_settings[eq_idx]['boost']:.1f}dB", x, y)
         else:
-            oled.text(f"{marker} {item['name']}", x, y)
-    oled.show()
+            display.text(font, f"{marker} {item['name']}", x, y)
+    #oled.show()
 
 #Show frequence response on boot
 
 plot_graph()
 time.sleep_ms(5000)
-wake_oled()
+wake_tft()
     
 # === Button Handler ===
 button_press_time = 0
 def button_handler(pin):
     global button_press_time, editing_parameter, needs_save
-    wake_oled()
+    wake_tft()
     now = time.ticks_ms()
     if time.ticks_diff(now, button_press_time) < 700:
         return
@@ -681,10 +718,10 @@ def button_handler(pin):
     elif item["name"] == "Show graph":
         print("showing graph...")   
         editing_parameter = False
-        oled.fill(0)
+        display.fill(0)
         plot_graph()
         time.sleep_ms(5000)
-        wake_oled()
+        wake_tft()
         button_press_time = now + 6000
     display_menu()
 
@@ -701,7 +738,7 @@ def handle_rotary():
     if delta == 0:
         return
     last_val = val
-    wake_oled()
+    wake_tft()
     last_save_time = time.ticks_ms()  # Update last activity time for debounced save
     current_menu, cursor, scroll_offset = menu_stack[-1]
     item = current_menu[cursor]
@@ -824,5 +861,5 @@ while True:
     # Check if save is needed and delay has passed
     if needs_save and time.ticks_diff(time.ticks_ms(), last_save_time) > SAVE_DELAY_MS:
         save_presets()
-    handle_oled_timeout()
+    handle_tft_timeout()
     time.sleep_ms(50)
