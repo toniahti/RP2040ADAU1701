@@ -27,7 +27,7 @@ LOWPASS_ADDR_2 = 0x031 # Second Linkwitz-Riley 2nd order address. Five coefficie
 # === Constants ===
 FS = 48000  # Sample rate in Hz
 ADAU1701_ADDR = 0x34  # ADAU1701 I2C address (for future use)
-MAX_VISIBLE = 4  # Maximum visible menu items (adjust based on display height)
+MAX_VISIBLE = 6  # Maximum visible menu items (adjust based on display height)
 SAVE_DELAY_MS = 2000  # Delay before saving presets to flash (2 seconds)
 
 # --- Grid area (inset for ticks) ---
@@ -65,7 +65,8 @@ display = st7789.ST7789(
     reset=rst,
     dc=dc,
     cs=cs,
-    rotation=1    
+    rotation=1,
+    buffer_size=131072  
 )
 
 # === SPI TFT Backlight ===
@@ -74,8 +75,8 @@ pwm = PWM(Pin(4))
 # === Rotary Encoder & Button Setup ===
 SW = Pin(14, Pin.IN, Pin.PULL_UP)
 r = RotaryIRQ(
-    pin_num_clk=26,
-    pin_num_dt=15,
+    pin_num_clk=15,
+    pin_num_dt=26,
     min_val=0,
     max_val=1000,
     reverse=True,
@@ -87,13 +88,13 @@ r = RotaryIRQ(
 dim_after_ms = 10000
 off_after_ms = 20000
 display.init()
-pwm.duty_u16(65534) # 0-65534
+pwm.duty_u16(32768) # 0-65534
 last_activity = time.ticks_ms()
 
 def wake_tft():
     global tft_on, last_activity
     last_activity = time.ticks_ms()
-    pwm.duty_u16(65534)  # Restore full brightness
+    pwm.duty_u16(32768)  # Restore full brightness
     tft_on = True
     display_menu()
 
@@ -107,7 +108,7 @@ def handle_tft_timeout():
         pwm.duty_u16(0)
         tft_on = False
     elif idle_time > dim_after_ms and tft_on:
-        pwm.duty_u16(1024)
+        pwm.duty_u16(8192)
 
 def parametric_eq(frequency, q, boost):
     gain = 0
@@ -551,7 +552,7 @@ def plot_graph():
             if prev_y is not None:
                 y1, y2 = min(y, prev_y), max(y, prev_y)
                 for yy in range(y1, y2+1):
-                    display.pixel(x, yy, st7789.WHITE)
+                    display.pixel(x, yy, st7789.GREEN)
             prev_y = y
     #oled.show()
     print("Frequency response drawn on SSD1306 OLED with inset grid and ticks.")
@@ -597,33 +598,28 @@ last_save_time = 0  # Timestamp of last parameter change
 needs_save = False  # Flag to indicate pending save
 
 # === Show boot logos and load Last Preset on Boot ===
-# fb_ad = framebuf.FrameBuffer(image_ad.ad, 128, 64, framebuf.MONO_VLSB)
-# fb_rp = framebuf.FrameBuffer(image_rp.rp, 128, 64, framebuf.MONO_VLSB)
-# oled.blit(fb_ad, 0, 0)
-# oled.show()
-# time.sleep_ms(2000)
-# oled.fill(0)
-# oled.blit(fb_rp, 0, 0)
-# oled.show()
 #pass_thru_dsp()
+display.jpg("analog.jpg", 0, 0)
+time.sleep_ms(2000)
+display.jpg("pico.jpg", 0, 0)
+time.sleep_ms(2000)
 #time.sleep_ms(10000)
 load_presets()
-time.sleep_ms(2000)
 display.fill(0)
 #oled.show()
 
 
 # === Display Function ===
 def display_menu():
-    display.fill(0)
+    #display.fill(0)
     current_menu, cursor, scroll_offset = menu_stack[-1]
     if len(menu_stack) == 1:  # Top-level menu
         header_text = "Main menu"
-        x_header = (128 - len(header_text) * 8) // 2  # Center header (8 pixels per char)
+        x_header = (320 - len(header_text) * 8) // 2  # Center header (8 pixels per char)
         display.text(font, header_text, x_header, 5)
         preset_text = f"Preset: PR{current_preset + 1}"
-        x_preset = (128 - len(preset_text) * 8) // 2  # Center preset (8 pixels per char)
-        display.text(font, preset_text, x_preset, 56)  # Bottom of 64-pixel display
+        x_preset = (320 - len(preset_text) * 8) // 2  # Center preset (8 pixels per char)
+        display.text(font, preset_text, x_preset, 150)  # Bottom of 170-pixel display
     else:  # Sub-menus
         header_text = ""
         if len(menu_stack) >= 2:
@@ -640,14 +636,14 @@ def display_menu():
                 header_text = "Parameters"
             elif parent_item == "Presets":
                 header_text = "Presets"
-            x_preset = (128 - len(header_text) * 8) // 2  # Center preset (8 pixels per char)
+            x_preset = (320 - len(header_text) * 8) // 2  # Center preset (8 pixels per char)
             display.text(font, header_text, x_preset, 5)
 
     end_idx = min(scroll_offset + MAX_VISIBLE, len(current_menu))
     for visible_idx, idx in enumerate(range(scroll_offset, end_idx)):
         item = current_menu[idx]
         marker = ">" if idx == cursor else " "
-        x, y = 0, 20 + visible_idx * 10
+        x, y = 0, 20 + visible_idx * 20
         if item["name"] == "Value":
             parent_name = menu_stack[-2][0][menu_stack[-2][1]]["name"]
             if parent_name == "Volume":
@@ -676,9 +672,8 @@ def display_menu():
             display.text(font, f"{marker} {item['name']}", x, y)
     #oled.show()
 
-#Show frequence response on boot
-
-plot_graph()
+# === Show frequence response on boot ===
+#plot_graph()
 time.sleep_ms(5000)
 wake_tft()
     
@@ -721,6 +716,7 @@ def button_handler(pin):
         display.fill(0)
         plot_graph()
         time.sleep_ms(5000)
+        display.fill(0)
         wake_tft()
         button_press_time = now + 6000
     display_menu()
