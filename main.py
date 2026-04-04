@@ -546,12 +546,12 @@ def plot_graph():
         y = int(TOP_PAD + (12 - db) * (GRID_H) / 24)
         x = LEFT_PAD + xi
         if 0 <= x < 128 and 0 <= y < 64:
-            display.pixel(x, y, ST7789.WHITE)
+            display.pixel(x, y, st7789.WHITE)
             # Optionally connect points for a solid line:
             if prev_y is not None:
                 y1, y2 = min(y, prev_y), max(y, prev_y)
                 for yy in range(y1, y2+1):
-                    display.pixel(x, yy, ST7789.WHITE)
+                    display.pixel(x, yy, st7789.WHITE)
             prev_y = y
     #oled.show()
     print("Frequency response drawn on SSD1306 OLED with inset grid and ticks.")
