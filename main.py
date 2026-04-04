@@ -3,6 +3,7 @@ import math
 import cmath
 import ujson
 import machine # type: ignore
+import framebuf
 from machine import Pin, I2C, PWM # type: ignore
 import st7789 # type: ignore
 #from ssd1306 import SSD1306_I2C
@@ -83,6 +84,8 @@ r = RotaryIRQ(
     range_mode=RotaryIRQ.RANGE_UNBOUNDED,
     half_step=False
 )
+
+fbuf = framebuf.FrameBuffer(bytearray(320 * 170 // 8), 320, 170, framebuf.MONO_HLSB)
 
 # === Screen Saver ===
 dim_after_ms = 10000
@@ -603,6 +606,7 @@ display.jpg("analog.jpg", 0, 0)
 time.sleep_ms(2000)
 display.jpg("pico.jpg", 0, 0)
 time.sleep_ms(2000)
+#time.sleep_ms(2000)
 #time.sleep_ms(10000)
 load_presets()
 display.fill(0)
