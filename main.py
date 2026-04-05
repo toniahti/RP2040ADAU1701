@@ -32,10 +32,29 @@ MAX_VISIBLE = 6  # Maximum visible menu items (adjust based on display height)
 SAVE_DELAY_MS = 2000  # Delay before saving presets to flash (2 seconds)
 
 # --- Grid area (inset for ticks) ---
-LEFT_PAD, RIGHT_PAD = 24, 6
-TOP_PAD, BOTTOM_PAD = 6, 12
-GRID_W = 128 - LEFT_PAD - RIGHT_PAD
-GRID_H = 64 - TOP_PAD - BOTTOM_PAD
+# LEFT_PAD, RIGHT_PAD = 24, 6
+# TOP_PAD, BOTTOM_PAD = 6, 12
+# GRID_W = 128 - LEFT_PAD - RIGHT_PAD
+# GRID_H = 64 - TOP_PAD - BOTTOM_PAD
+
+# --- Screen specs ---
+SCREEN_WIDTH = 320
+SCREEN_HEIGHT = 170
+
+# --- Graph specs ---
+FREQ_MIN = 15 #Hz
+FREQ_MAX = 140 #Hz
+GRID_GAIN_MIN = -24 #dB
+GRID_GAIN_MAX = 6 #dB
+GRID_DIVISION_DB = 6 #dB per horizontal grid line
+GRID_FREQ_RANGE = FREQ_MAX - FREQ_MIN #Hz
+GRID_LEFT_PAD = 30 #px (30 for ST7789, 24 for SSD1306) - allows space for frequency labels
+GRID_RIGHT_PAD = 8 #px (8 for ST7789, 6 for SSD1306) - allows space for dB labels
+GRID_TOP_PAD = 24 #px (24 for ST7789, 6 for SSD1306) - allows space for header and top dB labels
+GRID_BOTTOM_PAD = 22 #px (22 for ST7789, 12 for SSD1306) - allows space for bottom dB labels
+GRID_WIDTH = SCREEN_WIDTH - GRID_LEFT_PAD - GRID_RIGHT_PAD #px
+GRID_HEIGHT = SCREEN_HEIGHT - GRID_TOP_PAD - GRID_BOTTOM_PAD #px
+GRID_GAIN_RANGE = GRID_GAIN_MAX - GRID_GAIN_MIN #dB
 
 # === I2C ADAU1701 Setup ===
 i2c_adau = I2C(0, scl=Pin(1), sda=Pin(0), freq=400000)
@@ -506,56 +525,60 @@ def cascaded_response(freq):
 # --- Draw grid and ticks ---
 def draw_grid():
     # Draw rectangle border
-    x0, x1 = 30, 320 - 8
-    y0, y1 = 24, 170 - 22
-    display.hline(x0, y0, x1-x0, st7789.WHITE)
-    display.hline(x0, y1, x1-x0, st7789.WHITE)
-    display.vline(x0, y0, y1-y0, st7789.WHITE)
-    display.vline(x1, y0, y1-y0, st7789.WHITE)
+    # x0, x1 = 30, 320 - 8
+    # y0, y1 = 24, 170 - 22
+    display.hline(GRID_LEFT_PAD, GRID_TOP_PAD, GRID_WIDTH, st7789.WHITE)
+    display.hline(GRID_LEFT_PAD, SCREEN_HEIGHT - GRID_BOTTOM_PAD, GRID_WIDTH, st7789.WHITE)
+    display.vline(GRID_LEFT_PAD, GRID_TOP_PAD, GRID_HEIGHT, st7789.WHITE)
+    display.vline(SCREEN_WIDTH - GRID_RIGHT_PAD, GRID_TOP_PAD, GRID_HEIGHT, st7789.WHITE)
 
+    # global grid_range_vertical
+    # global grid_width
+    # global grid_height
     # Horizontal grid lines and dB ticks
-    grid_min = -18 #db
-    grid_max = 6 + 1 # Plus 1 dB for the loop
-    grid_step = 3 #db
-    grid_range = grid_max - 1 - grid_min
-    for db in range(grid_min, grid_max, grid_step):
-        y = int(y0 + (grid_max-1 - db) * ((y1 - y0) / grid_range))
-        display.hline(x0, y, x1-x0, st7789.WHITE)
+    # grid_min = -18 #db
+    # grid_max = 6 #db
+    # grid_division = 3 #db 
+    # grid_range_vertical = grid_max - grid_min #dB
+    # grid_width = x1 - x0
+    # grid_height = y1 - y0
+    for db in range(GRID_GAIN_MIN, GRID_GAIN_MAX + 1, GRID_DIVISION_DB):
+        y = int(GRID_TOP_PAD + (GRID_GAIN_MAX - db) * ((GRID_HEIGHT) / GRID_GAIN_RANGE))
+        display.hline(GRID_LEFT_PAD, y, GRID_WIDTH, st7789.WHITE)
         label = "{:>3}".format(db)
         display.text(font, label, 0, y-6, st7789.WHITE)
 
     # Vertical grid lines and frequency ticks (logarithmic scale)
-    log_fmin = math.log10(10)
-    log_fmax = math.log10(200)
+    log_fmin = math.log10(FREQ_MIN)
+    log_fmax = math.log10(FREQ_MAX)
     for freq in [10, 20, 50, 80, 120]:
-    #for freq in [10,20, 40, 80, 140]:
         frac = (math.log10(freq) - log_fmin) / (log_fmax - log_fmin)
-        x = int(x0 + frac * (GRID_W-1))
-        display.vline(x, y0, y1-y0, st7789.WHITE)
+        x = int(GRID_LEFT_PAD + frac * (GRID_WIDTH-1))
+        display.vline(x, GRID_TOP_PAD, GRID_HEIGHT, st7789.WHITE)
         label = str(freq)
-        display.text(font, label, x-8, y1+6, st7789.WHITE)
+        display.text(font, label, x-8, SCREEN_HEIGHT - GRID_BOTTOM_PAD+6, st7789.WHITE)
 
 def plot_graph():
     draw_grid()
     generate_coeffs_table()
-    log_fmin = math.log10(10)
-    log_fmax = math.log10(200)
+    log_fmin = math.log10(FREQ_MIN)
+    log_fmax = math.log10(FREQ_MAX)
     prev_y = None
-    for xi in range(GRID_W):
-        frac = xi / (GRID_W-1)
+    for xi in range(GRID_WIDTH):
+        frac = xi / (GRID_WIDTH-1)
         freq = 10 ** (log_fmin + frac * (log_fmax - log_fmin))
         mag = cascaded_response(freq)
-        db = 20 * math.log10(mag) if mag > 0 else -12
-        db = max(-12, min(12, db))  # Clip to -12dB..+12dB
-        y = int(TOP_PAD + (12 - db) * (GRID_H) / 24)
-        x = LEFT_PAD + xi
-        if 0 <= x < 128 and 0 <= y < 64:
+        db = 20 * math.log10(mag) if mag > 0 else GRID_GAIN_MIN
+        db = max(GRID_GAIN_MIN, min(GRID_GAIN_MAX, db))  # Clip to grid range
+        y = int(GRID_TOP_PAD + (GRID_GAIN_MAX - db) * (GRID_HEIGHT) / GRID_GAIN_RANGE)
+        x = GRID_LEFT_PAD + xi
+        if 0 <= x < SCREEN_WIDTH and 0 <= y < SCREEN_HEIGHT:
             display.pixel(x, y, st7789.WHITE)
             # Optionally connect points for a solid line:
             if prev_y is not None:
                 y1, y2 = min(y, prev_y), max(y, prev_y)
                 for yy in range(y1, y2+1):
-                    display.pixel(x, yy, st7789.GREEN)
+                    display.pixel(x, yy, st7789.MAGENTA)
             prev_y = y
     #oled.show()
     print("Frequency response drawn on SSD1306 OLED with inset grid and ticks.")
@@ -677,7 +700,7 @@ def display_menu():
     #oled.show()
 
 # === Show frequence response on boot ===
-#plot_graph()
+plot_graph()
 time.sleep_ms(5000)
 wake_tft()
     
