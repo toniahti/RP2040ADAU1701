@@ -44,9 +44,9 @@ SCREEN_HEIGHT = 170
 # --- Graph specs ---
 FREQ_MIN = 15 #Hz
 FREQ_MAX = 140 #Hz
-GRID_GAIN_MIN = -24 #dB
-GRID_GAIN_MAX = 6 #dB
-GRID_DIVISION_DB = 6 #dB per horizontal grid line
+GRID_GAIN_MIN = -12 #dB
+GRID_GAIN_MAX = 12 #dB
+GRID_DIVISION_DB = 3 #dB per horizontal grid line
 GRID_FREQ_RANGE = FREQ_MAX - FREQ_MIN #Hz
 GRID_LEFT_PAD = 30 #px (30 for ST7789, 24 for SSD1306) - allows space for frequency labels
 GRID_RIGHT_PAD = 8 #px (8 for ST7789, 6 for SSD1306) - allows space for dB labels
@@ -231,7 +231,7 @@ def write_safeload(addr_coeff, biquad, index):
     try:
         i2c_adau.writeto(I2C_ADDR, combined_data)
     except OSError as e:
-        display.fill(0)
+        #display.fill(0)
         #display.text(f"DSP write error!", 0, 28)
         display.text(font, "DSP write error!", 8, 8, st7789.WHITE)
         #oled.show()
@@ -239,7 +239,7 @@ def write_safeload(addr_coeff, biquad, index):
     try:
         i2c_adau.writeto(I2C_ADDR, combined_addr)
     except OSError as e:
-        display.fill(0)
+        #display.fill(0)
         display.text(font, "DSP write error!", 8, 8, st7789.WHITE)
         #oled.show()
 
@@ -247,7 +247,7 @@ def trigger_safeload():
     try:
         i2c_adau.writeto(I2C_ADDR, bytes([0x08, 0x1c, 0x00, 0x3c]))
     except OSError as e:
-        display.fill(0)
+        #display.fill(0)
         display.text(font, "DSP write error!", 8, 8, st7789.WHITE)
         #oled.show()
 
@@ -511,52 +511,67 @@ def generate_coeffs_table():
     ]
     #print (coeffs_table)
 
+# def cascaded_response(freq):
+#     w = 2 * math.pi * freq / FS
+#     z = cmath.exp(-1j * w)
+#     h_total = 1
+
+#     for a in coeffs_table:
+#         num = a[0] + a[1]*z**-1 + a[2]*z**-2
+#         den = 1 + a[3]*z**-1 + a[4]*z**-2
+#         h_total *= num / den
+#     return abs(h_total)
+
 def cascaded_response(freq):
     w = 2 * math.pi * freq / FS
-    z = cmath.exp(-1j * w)
-    h_total = 1
 
-    for a in coeffs_table:
-        num = a[0] + a[1]*z**-1 + a[2]*z**-2
-        den = 1 + a[3]*z**-1 + a[4]*z**-2
+    # Compute z^-1 and z^-2 once
+    cw = math.cos(w)
+    sw = math.sin(w)
+    z1 = complex(cw, -sw)          # z^-1
+    z2 = complex(cw*cw - sw*sw,    # cos(2w)
+                 -2*cw*sw)         # -sin(2w)
+
+    h_total = 1+0j
+
+    # Localize variables for speed
+    z1_local = z1
+    z2_local = z2
+    coeffs = coeffs_table
+
+    for b0, b1, b2, a1, a2 in coeffs:
+        num = b0 + b1*z1_local + b2*z2_local
+        den = 1 + a1*z1_local + a2*z2_local
         h_total *= num / den
+
     return abs(h_total)
 
 # --- Draw grid and ticks ---
 def draw_grid():
-    # Draw rectangle border
-    # x0, x1 = 30, 320 - 8
-    # y0, y1 = 24, 170 - 22
-    display.hline(GRID_LEFT_PAD, GRID_TOP_PAD, GRID_WIDTH, st7789.WHITE)
-    display.hline(GRID_LEFT_PAD, SCREEN_HEIGHT - GRID_BOTTOM_PAD, GRID_WIDTH, st7789.WHITE)
-    display.vline(GRID_LEFT_PAD, GRID_TOP_PAD, GRID_HEIGHT, st7789.WHITE)
-    display.vline(SCREEN_WIDTH - GRID_RIGHT_PAD, GRID_TOP_PAD, GRID_HEIGHT, st7789.WHITE)
 
-    # global grid_range_vertical
-    # global grid_width
-    # global grid_height
-    # Horizontal grid lines and dB ticks
-    # grid_min = -18 #db
-    # grid_max = 6 #db
-    # grid_division = 3 #db 
-    # grid_range_vertical = grid_max - grid_min #dB
-    # grid_width = x1 - x0
-    # grid_height = y1 - y0
     for db in range(GRID_GAIN_MIN, GRID_GAIN_MAX + 1, GRID_DIVISION_DB):
         y = int(GRID_TOP_PAD + (GRID_GAIN_MAX - db) * ((GRID_HEIGHT) / GRID_GAIN_RANGE))
-        display.hline(GRID_LEFT_PAD, y, GRID_WIDTH, st7789.WHITE)
+        if db == 0:
+            display.hline(GRID_LEFT_PAD, y, GRID_WIDTH, st7789.GREEN)
+        else:
+            display.hline(GRID_LEFT_PAD, y, GRID_WIDTH, st7789.color565(128, 128, 128))
         label = "{:>3}".format(db)
         display.text(font, label, 0, y-6, st7789.WHITE)
 
     # Vertical grid lines and frequency ticks (logarithmic scale)
     log_fmin = math.log10(FREQ_MIN)
     log_fmax = math.log10(FREQ_MAX)
-    for freq in [10, 20, 50, 80, 120]:
+    for freq in [10, 20, 30, 50, 80, 120]:
         frac = (math.log10(freq) - log_fmin) / (log_fmax - log_fmin)
         x = int(GRID_LEFT_PAD + frac * (GRID_WIDTH-1))
         display.vline(x, GRID_TOP_PAD, GRID_HEIGHT, st7789.WHITE)
         label = str(freq)
         display.text(font, label, x-8, SCREEN_HEIGHT - GRID_BOTTOM_PAD+6, st7789.WHITE)
+    
+    display.hline(GRID_LEFT_PAD, GRID_TOP_PAD, GRID_WIDTH, st7789.WHITE)
+    display.hline(GRID_LEFT_PAD, SCREEN_HEIGHT - GRID_BOTTOM_PAD, GRID_WIDTH, st7789.WHITE)
+    display.vline(GRID_LEFT_PAD, GRID_TOP_PAD, GRID_HEIGHT, st7789.WHITE)
+    display.vline(SCREEN_WIDTH - GRID_RIGHT_PAD, GRID_TOP_PAD, GRID_HEIGHT, st7789.WHITE)
 
 def plot_graph():
     draw_grid()
@@ -573,12 +588,13 @@ def plot_graph():
         y = int(GRID_TOP_PAD + (GRID_GAIN_MAX - db) * (GRID_HEIGHT) / GRID_GAIN_RANGE)
         x = GRID_LEFT_PAD + xi
         if 0 <= x < SCREEN_WIDTH and 0 <= y < SCREEN_HEIGHT:
-            display.pixel(x, y, st7789.WHITE)
+            #display.pixel(x, y, st7789.WHITE)
             # Optionally connect points for a solid line:
             if prev_y is not None:
                 y1, y2 = min(y, prev_y), max(y, prev_y)
                 for yy in range(y1, y2+1):
                     display.pixel(x, yy, st7789.MAGENTA)
+                    display.pixel(x, yy-1, st7789.MAGENTA) # Thicken the line by drawing adjacent pixels
             prev_y = y
     #oled.show()
     print("Frequency response drawn on SSD1306 OLED with inset grid and ticks.")
