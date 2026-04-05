@@ -658,11 +658,11 @@ def display_menu():
     current_menu, cursor, scroll_offset = menu_stack[-1]
     if len(menu_stack) == 1:  # Top-level menu
         header_text = "Main menu"
-        x_header = (320 - len(header_text) * 8) // 2  # Center header (8 pixels per char)
+        x_header = (SCREEN_WIDTH - len(header_text) * 8) // 2  # Center header (8 pixels per char)
         display.text(font, header_text, x_header, 5)
         preset_text = f"Preset: PR{current_preset + 1}"
-        x_preset = (320 - len(preset_text) * 8) // 2  # Center preset (8 pixels per char)
-        display.text(font, preset_text, x_preset, 150)  # Bottom of 170-pixel display
+        x_preset = (SCREEN_WIDTH - len(preset_text) * 8) // 2  # Center preset (8 pixels per char)
+        display.text(font, preset_text, x_preset, SCREEN_HEIGHT - 30)  # Bottom of 170-pixel display
     else:  # Sub-menus
         header_text = ""
         if len(menu_stack) >= 2:
@@ -679,7 +679,7 @@ def display_menu():
                 header_text = "Parameters"
             elif parent_item == "Presets":
                 header_text = "Presets"
-            x_preset = (320 - len(header_text) * 8) // 2  # Center preset (8 pixels per char)
+            x_preset = (SCREEN_WIDTH - len(header_text) * 8) // 2  # Center preset (8 pixels per char)
             display.text(font, header_text, x_preset, 5)
 
     end_idx = min(scroll_offset + MAX_VISIBLE, len(current_menu))
@@ -894,6 +894,7 @@ def handle_rotary():
     display_menu()    
  
 # === Main Loop ===
+display.fill(0)
 display_menu()
 while True:
     handle_rotary()
