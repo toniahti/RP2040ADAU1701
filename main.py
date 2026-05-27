@@ -1,9 +1,9 @@
 import time
 import math
-import cmath
+# import cmath
 import ujson
 import machine # type: ignore
-import framebuf
+import framebuf # type: ignore
 from machine import Pin, I2C, PWM # type: ignore
 import st7789 # type: ignore
 #from ssd1306 import SSD1306_I2C
