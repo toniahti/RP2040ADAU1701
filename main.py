@@ -524,27 +524,20 @@ def generate_coeffs_table():
 
 def cascaded_response(freq):
     w = 2 * math.pi * freq / FS
-
-    # Compute z^-1 and z^-2 once
     cw = math.cos(w)
     sw = math.sin(w)
-    z1 = complex(cw, -sw)          # z^-1
-    z2 = complex(cw*cw - sw*sw,    # cos(2w)
-                 -2*cw*sw)         # -sin(2w)
+    cw2 = cw * cw - sw * sw
+    sw2 = 2 * cw * sw
 
-    h_total = 1+0j
+    mag_sq = 1.0
+    for b0, b1, b2, a1, a2 in coeffs_table:
+        num_re = b0 + b1 * cw + b2 * cw2
+        num_im = -(b1 * sw + b2 * sw2)
+        den_re = 1 + a1 * cw + a2 * cw2
+        den_im = -(a1 * sw + a2 * sw2)
+        mag_sq *= (num_re * num_re + num_im * num_im) / (den_re * den_re + den_im * den_im)
 
-    # Localize variables for speed
-    z1_local = z1
-    z2_local = z2
-    coeffs = coeffs_table
-
-    for b0, b1, b2, a1, a2 in coeffs:
-        num = b0 + b1*z1_local + b2*z2_local
-        den = 1 + a1*z1_local + a2*z2_local
-        h_total *= num / den
-
-    return abs(h_total)
+    return math.sqrt(mag_sq)
 
 # --- Draw grid and ticks ---
 def draw_grid():
@@ -585,16 +578,12 @@ def plot_graph():
         mag = cascaded_response(freq)
         db = 20 * math.log10(mag) if mag > 0 else GRID_GAIN_MIN
         db = max(GRID_GAIN_MIN, min(GRID_GAIN_MAX, db))  # Clip to grid range
-        y = int(GRID_TOP_PAD + (GRID_GAIN_MAX - db) * (GRID_HEIGHT) / GRID_GAIN_RANGE)
+        y = int(GRID_TOP_PAD + (GRID_GAIN_MAX - db) * GRID_HEIGHT / GRID_GAIN_RANGE)
         x = GRID_LEFT_PAD + xi
         if 0 <= x < SCREEN_WIDTH and 0 <= y < SCREEN_HEIGHT:
-            #display.pixel(x, y, st7789.WHITE)
-            # Optionally connect points for a solid line:
             if prev_y is not None:
                 y1, y2 = min(y, prev_y), max(y, prev_y)
-                for yy in range(y1, y2+1):
-                    display.pixel(x, yy, st7789.MAGENTA)
-                    display.pixel(x, yy-1, st7789.MAGENTA) # Thicken the line by drawing adjacent pixels
+                display.vline(x, y1, y2 - y1 + 1, st7789.MAGENTA)
             prev_y = y
     #oled.show()
     print("Frequency response drawn on SSD1306 OLED with inset grid and ticks.")
